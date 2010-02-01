@@ -72,10 +72,11 @@
 			
 			[Bindable] private var settings:VNCSettings = new VNCSettings();
 			[Bindable] private var hideControls:Boolean;
+			[Bindable] private var password:String;
 			
 			private function init():void {
 				if (URLUtil.getProtocol(url) == 'file') {
-					Alert.show("WARNING:\nDue to a flash bug, Flashlight-VNC won't run well if served by the 'file' protocol in a browser, build in release mode.\nRun it from an HTTP server instead.");
+					Alert.show("WARNING:\nDue to a flash bug, Flashlight-VNC won't run well if served by the 'file' protocol in a browser, build in release mode.\nRun it from an HTTP server instead.\nRight-click disabled, tightVNC broken");
 				}
 				
 				var debug:Boolean = parameters.debug == "true";
@@ -89,6 +90,7 @@
 				if (parameters.viewOnly) settings.viewOnly = parameters.viewOnly == "true";
 				if (parameters.host) settings.host = parameters.host;
 				if (parameters.port) settings.port = int(parameters.port);
+				if (parameters.password) password = parameters.password;
 				if (parameters.securityPort) {
 					settings.securityPort = int(parameters.securityPort);
 					settings.useSecurity = true;
@@ -128,13 +130,17 @@
 					consoleTarget.level = LogEventLevel.DEBUG;
 				}
 				
-				new JsRightClick();
+				try {
+					new JsRightClick();
+				} catch (e:Error) {
+					logger.error("Error whith right-click emulation: "+e.toString());
+				}
 				
 				logger.debug(">> init()");
 				
 				addEventListener(Event.ENTER_FRAME, onFrameEnter);
 				
-				if (hideControls || autoConnect) vnc.connect();
+				if (autoConnect) vnc.connect();
 			}
 			
 			private function onFrameEnter(event:Event):void {
@@ -261,7 +267,7 @@
 		host="{settings.host}"
 		port="{settings.port}"
 		securityPort="{settings.securityPort}"
-		password="{parameters.password}"
+		password="{password}"
 		viewOnly="{settings.viewOnly}"
 		shareConnection="{settings.shared}"
 		encoding="{settings.encoding}"

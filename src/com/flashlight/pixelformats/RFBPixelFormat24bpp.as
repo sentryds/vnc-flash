@@ -45,7 +45,7 @@ package com.flashlight.pixelformats {
 		}
 		
 		override public function getPixelDataSize():uint {
-			return 4;
+			return 3;
 		}
 		
 		override public function getPixelsDataSize(height:uint,width:uint):uint {

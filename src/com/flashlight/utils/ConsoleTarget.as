@@ -38,6 +38,7 @@ package com.flashlight.utils
 		}
 		
 		override mx_internal function internalLog(message:String):void {
+			if (output.text.length > 5000) output.text = "";
 			output.text += message +"\n";
 		}
 		

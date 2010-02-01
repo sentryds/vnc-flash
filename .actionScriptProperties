@@ -10,6 +10,7 @@
 </compiler>
 <applications>
 <application path="Flashlight.mxml"/>
+<application path="RightClickTest.mxml"/>
 </applications>
 <modules/>
 <buildCSSFiles/>

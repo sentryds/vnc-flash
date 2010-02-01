@@ -1,0 +1,8 @@
+v2.0.2
+
+Fix password parameter bug
+Fix autoConnect parameter bug
+Fix typo on "Password reqiered"
+Fix bug in RFBPixelFormat24bit which hanged decoding
+Fix bug in EncodingTight which crashed decoding
+Fix right-click on Firefox/Linux

@@ -117,7 +117,6 @@ package com.flashlight.encoding
 				}
 			}
 			
-			
 			var readTightExplicitFilter:Object = {
 				name: 'readTightExplicitFilter',
 				bytesNeeded: 1,
@@ -218,7 +217,7 @@ package com.flashlight.encoding
 					name: 'readTightData',
 					bytesNeeded: pixelFormat.getPixelsDataSize(rectangle.width, rectangle.height),
 					read: function():Object {
-						var pixels:ByteArray = pixelFormat.readPixel(inputStream);
+						var pixels:ByteArray = pixelFormat.readPixels(rectangle.width, rectangle.height, inputStream);
 						listener.onUpdateRectangle(rectangle,pixels);
 						return null;
 					}
