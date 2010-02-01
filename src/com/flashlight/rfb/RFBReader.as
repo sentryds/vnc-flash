@@ -403,7 +403,7 @@ package com.flashlight.rfb
 				if (!nextReader) nextReader = readerStack.pop();
 			}
 			
-			logger.debug(nextReader.name+' '+nextReader.bytesNeeded+' '+inputStream.bytesAvailable);
+			//logger.debug(nextReader.name+' '+nextReader.bytesNeeded+' '+inputStream.bytesAvailable);
 				
 			readerStack.push(nextReader);
 		}
