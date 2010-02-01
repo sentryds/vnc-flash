@@ -78,7 +78,7 @@ package com.flashlight.vnc
 		
 		[Bindable] public var host:String = 'localhost';
 		[Bindable] public var port:int = 5900;
-		[Bindable] public var password:String = "<unset>";
+		[Bindable] public var password:String = '<unset>';
 		[Bindable] public var securityPort:int = 0;
 		[Bindable] public var shareConnection:Boolean = true;
 		
@@ -393,6 +393,7 @@ package com.flashlight.vnc
 		
 		private var captureKeyEvents:Boolean = false;
 		private var crtKeyDown:Boolean = false;
+		private var crtKeyLocked:Boolean = false;
 		
 		private function onFocusLost(event:FocusEvent):void {
 			if (status != VNCConst.STATUS_CONNECTED) return;
@@ -414,7 +415,27 @@ package com.flashlight.vnc
 			rfbWriter.writeKeyEvent(false,65535,true); //DEL
 	    }
 		
+		public function sendKey(keyCode:int):void {
+			if (status != VNCConst.STATUS_CONNECTED) return;
+			
+                        logger.debug(">> sendKey: " + keyCode);
+
+			rfbWriter.writeKeyEvent(true,keyCode,false);
+			rfbWriter.writeKeyEvent(false,keyCode,true);
+	    }
+
+		public function crtLock():void {
+			if (status != VNCConst.STATUS_CONNECTED) return;
+                        crtKeyLocked = true;
+	    }
+		public function crtUnlock():void {
+			if (status != VNCConst.STATUS_CONNECTED) return;
+                        crtKeyLocked = false;
+	    }
+		
+		
 		private function onLocalKeyboardEvent(event:KeyboardEvent):void {
+                        logger.debug(">> onLocalKeyboardEvent, keyCode: " + event.keyCode.toString());
 			if (status != VNCConst.STATUS_CONNECTED) return;
 			
 			if (captureKeyEvents) {
@@ -474,11 +495,20 @@ package com.flashlight.vnc
 			
 			if (captureKeyEvents) {
 				var input:String = event.text;
-				
+                                var flush:Boolean = false;
+
+				if (crtKeyLocked)
+			            rfbWriter.writeKeyEvent(true,65507,false); //CTRL Down
+
 				for (var i:int=0; i<input.length ;i++) {
-					rfbWriter.writeKeyEvent(true,input.charCodeAt(i),false);
-					rfbWriter.writeKeyEvent(false,input.charCodeAt(i),(i == input.length-1));
+					rfbWriter.writeKeyEvent(true,input.charCodeAt(i),flush);
+                                        if (!crtKeyLocked && (i == input.length-1))
+                                            flush = true;
+					rfbWriter.writeKeyEvent(false,input.charCodeAt(i),flush);
 				}
+
+                                if (crtKeyLocked)
+			            rfbWriter.writeKeyEvent(false,65507,true); //CTRL Up
 				
 				screen.textInput.text ='';
 			}
