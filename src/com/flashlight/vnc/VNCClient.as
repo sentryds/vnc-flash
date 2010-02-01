@@ -50,7 +50,7 @@ package com.flashlight.vnc
 	import flash.ui.Mouse;
 	import flash.utils.ByteArray;
 	
-	import mx.core.Application;
+	import mx.core.FlexGlobals;
 	import mx.events.PropertyChangeEvent;
 	import mx.logging.ILogger;
 	import mx.logging.Log;
@@ -490,7 +490,7 @@ package com.flashlight.vnc
 			
 			status = VNCConst.STATUS_WAITING_SERVER;
 			
-			Application.application.addEventListener(Event.ENTER_FRAME, onEnterNewFrame,false,0,true);
+			FlexGlobals.topLevelApplication.addEventListener(Event.ENTER_FRAME, onEnterNewFrame,false,0,true);
 		}
 		
 		private function onSocketData(event:ProgressEvent):void {
@@ -517,7 +517,7 @@ package com.flashlight.vnc
 		public function disconnect():void {
 			logger.debug(">> disconnect()");
 			
-			Application.application.removeEventListener(Event.ENTER_FRAME, onEnterNewFrame);
+			FlexGlobals.topLevelApplication.removeEventListener(Event.ENTER_FRAME, onEnterNewFrame);
 			
 			// clean everything
 			if (socket) {

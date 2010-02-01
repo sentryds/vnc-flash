@@ -40,7 +40,7 @@ package com.flashlight.encoding
 	import flash.utils.IDataInput;
 	
 	import mx.controls.Alert;
-	import mx.core.Application;
+	import mx.core.FlexGlobals;
 	import mx.logging.ILogger;
 	import mx.logging.Log;
 	
@@ -75,7 +75,7 @@ package com.flashlight.encoding
 		private	var jpegLoaderIndex:int = 0;
 		
 		public function EncodingTight() {
-			jpegLoaderContext = new JPEGLoaderContext(1,false,Application.application.loaderInfo.applicationDomain,null);
+			jpegLoaderContext = new JPEGLoaderContext(1,false,FlexGlobals.topLevelApplication.loaderInfo.applicationDomain,null);
 		}
 		
 		public function getReader(inputStream:IDataInput, listener:RFBReaderListener, rectangle:Rectangle, pixelFormat:RFBPixelFormat):Object {

@@ -27,7 +27,7 @@ package com.flashright {
 	import flash.ui.ContextMenuItem;
 	
 	import mx.controls.Alert;
-	import mx.core.Application;
+	import mx.core.FlexGlobals;
 	import mx.core.ByteArrayAsset;
 	import mx.logging.ILogger;
 	import mx.logging.Log;
@@ -63,7 +63,7 @@ package com.flashright {
 			altShiftClickItem.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, onAltShiftClickItem);
 			contextMenu.customItems.push(altShiftClickItem);
 			
-			Application.application.contextMenu = contextMenu;
+			FlexGlobals.topLevelApplication.contextMenu = contextMenu;
 		}
 		
 		private function onInfoItemSelected(event:ContextMenuEvent):void {
@@ -75,15 +75,15 @@ package com.flashright {
 			if (!altShiftClickEnabled) {
 				altShiftClickEnabled = true;
 				altShiftClickItem.caption = "Disable Alt+Shift+Click for right-click";
-				Application.application.addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown, true);
-				Application.application.addEventListener(MouseEvent.MOUSE_UP, onMouseUp, true);
-				Application.application.addEventListener(MouseEvent.CLICK, onMouseClick, true);
+				FlexGlobals.topLevelApplication.addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown, true);
+				FlexGlobals.topLevelApplication.addEventListener(MouseEvent.MOUSE_UP, onMouseUp, true);
+				FlexGlobals.topLevelApplication.addEventListener(MouseEvent.CLICK, onMouseClick, true);
 			} else {
 				altShiftClickEnabled = false;
 				altShiftClickItem.caption = "Enable Alt+Shift+Click for right-click";
-				Application.application.removeEventListener(MouseEvent.MOUSE_DOWN, onMouseDown, true);
-				Application.application.removeEventListener(MouseEvent.MOUSE_UP, onMouseUp, true);
-				Application.application.removeEventListener(MouseEvent.CLICK, onMouseClick, true);
+				FlexGlobals.topLevelApplication.removeEventListener(MouseEvent.MOUSE_DOWN, onMouseDown, true);
+				FlexGlobals.topLevelApplication.removeEventListener(MouseEvent.MOUSE_UP, onMouseUp, true);
+				FlexGlobals.topLevelApplication.removeEventListener(MouseEvent.CLICK, onMouseClick, true);
 			}
 		}
 		
@@ -106,7 +106,7 @@ package com.flashright {
 		}
 		
 		private function getRelatedObject(location:Point):InteractiveObject {
-			var objects:Array = Application.application.getObjectsUnderPoint(location);
+			var objects:Array = FlexGlobals.topLevelApplication.getObjectsUnderPoint(location);
 		    for (var i:int = objects.length - 1; i >= 0; i--) {
 		        if (objects[i] is InteractiveObject) {
 		            return objects[i] as InteractiveObject;
@@ -121,7 +121,7 @@ package com.flashright {
 		
 		private function sendRightClickEvent(down:Boolean,ctrlKey:Boolean,shiftKey:Boolean,altKey:Boolean):void {
 
-			var eventPoint:Point = new Point(Application.application.mouseX, Application.application.mouseY);
+			var eventPoint:Point = new Point(FlexGlobals.topLevelApplication.mouseX, FlexGlobals.topLevelApplication.mouseY);
 	
 			if (down) {
 				sendEvent(RightMouseEvent.RIGHT_MOUSE_DOWN,eventPoint,ctrlKey,altKey,shiftKey,true);

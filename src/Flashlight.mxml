@@ -17,10 +17,11 @@
 -->
 
 <mx:Application xmlns:mx="http://www.adobe.com/2006/mxml"
-	creationComplete="init()" xmlns:components="com.flashlight.components.*" xmlns:vnc="com.flashlight.vnc.*">
+    creationComplete="init()" xmlns:components="com.flashlight.components.*" xmlns:vnc="com.flashlight.vnc.*"
+    styleName="appcontainer" >
 
 	<mx:Style>
-		Application {
+		.appcontainer {
 			padding-bottom:0;
 			padding-left:0;
 			padding-right:0;
