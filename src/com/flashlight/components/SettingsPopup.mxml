@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Copyright (C) 2009 Marco Fucci
+
+	This program is free software; you can redistribute it and/or modify it under the terms of the
+	GNU General Public License as published by the Free Software Foundation;
+	either version 2 of the License, or (at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+	without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+	See the GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License along with this program;
+	if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+	Contact : mfucci@gmail.com
+-->
+
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml"
+	title="Settings" creationComplete="init()" xmlns:utils="com.flashlight.utils.*"
+	verticalGap="5" xmlns:components="com.flashlight.components.*">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import com.flashlight.vnc.VNCConst;
+			import com.flashlight.vnc.VNCSettings;
+			import mx.managers.PopUpManager;
+			import com.flashlight.vnc.VNCClient;
+			
+			[Bindable] private var settings:VNCSettings;
+			
+			public function show(settings:VNCSettings,parent:DisplayObject):void {
+				this.settings = settings;
+				PopUpManager.addPopUp(this,parent,true);
+				PopUpManager.centerPopUp(this);
+				PopUpManager.bringToFront(this);
+			}
+			
+			private function init():void {
+				encodingList.selectedItem = encodings.(@value==String(settings.encoding))[0];
+				depthList.selectedItem = depths.(@value==String(settings.colorDepth))[0];
+				compressionList.selectedItem = compressions.(@value==String(settings.jpegCompression))[0];
+			}
+			
+			private function save():void {
+				settings.host = hostInput.text;
+				settings.port = int(portInput.text);
+				settings.useSecurity = securityEnabled.selected;
+				settings.securityPort = int(securityPortInput.text);
+				settings.encoding = int(XML(encodingList.selectedItem).@value);
+				settings.colorDepth = int(XML(depthList.selectedItem).@value);
+				settings.viewOnly = viewOnlyCheck.selected;
+				settings.shared = shareCheck.selected;
+				settings.scale = scaleCheck.selected;
+				settings.jpegCompression = int(XML(compressionList.selectedItem).@value);
+			}
+			
+			private function testSecurityPort():void {
+				Security.loadPolicyFile("xmlsocket://"+hostInput.text+":"+int(securityPortInput.text));
+				var s:Socket = new Socket();
+				s.addEventListener(IOErrorEvent.IO_ERROR, onSecurityIOError);
+				s.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityPortKo);
+				s.addEventListener(ProgressEvent.SOCKET_DATA, onSecurityPortPolicy);
+				s.connect(hostInput.text,int(securityPortInput.text));
+			}
+			
+			private function testVNCConnection():void {
+				Security.loadPolicyFile("xmlsocket://"+hostInput.text+":"+int(securityPortInput.text));
+				var s:Socket = new Socket();
+				s.addEventListener(IOErrorEvent.IO_ERROR, onVNCIOError);
+				s.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityPortKo);
+				s.addEventListener(Event.CONNECT, onVNCConnectionOk);
+				s.connect(hostInput.text,int(portInput.text));
+			}
+			
+			private function onSecurityIOError(event:IOErrorEvent):void {
+				Alert.show("IO Error when checking security port.\n["+event.type+"] "+event.text);
+			}
+			
+			private function onVNCIOError(event:IOErrorEvent):void {
+				Alert.show("IO Error when connecting to VNC server.\n["+event.type+"] "+event.text);
+			}
+			
+			private function onSecurityPortKo(event:SecurityErrorEvent):void {
+				Alert.show("Flash security prevents to connect to VNC server: "+event.toString());
+			}
+			
+			private function onSecurityPortPolicy(event:ProgressEvent):void {
+				var policy:String = (event.target as Socket).readUTFBytes(event.bytesLoaded);
+				Alert.show("Connection successful! Policy security:\n"+policy);
+				(event.target as Socket).close();
+			}
+			
+			private function onVNCConnectionOk(event:Event):void {
+				Alert.show("Connection successful to VNC server!");
+				(event.target as Socket).close();
+			}
+			
+		]]>
+	</mx:Script>
+	
+	<mx:XMLList id="encodings">
+		<item label="Tight" value="7"/>
+		<item label="Hextile" value="5"/>
+		<item label="RRE" value="2" />
+		<item label="Raw" value="0"/>
+	</mx:XMLList>
+	
+	<mx:XMLList id="compressions">
+		<item label="Off" value="-1"/>
+		<item label="0" value="0"/>
+		<item label="1" value="1" />
+		<item label="2" value="2"/>
+		<item label="3" value="3"/>
+		<item label="4" value="4"/>
+		<item label="5" value="5"/>
+		<item label="6" value="6"/>
+		<item label="7" value="7"/>
+		<item label="8" value="8"/>
+		<item label="9" value="9"/>
+	</mx:XMLList>
+	
+	<mx:XMLList id="depths">
+		<item label="24bits" value="24" />
+		<item label="16bits" value="16" />
+		<item label="8bits" value="8" />
+	</mx:XMLList>
+
+	<mx:VBox width="100%" borderStyle="solid" borderColor="#AAAAAA" paddingBottom="4" paddingLeft="4" paddingRight="4" paddingTop="4" horizontalAlign="center">
+		<mx:Label text="Connection settings" width="100%" paddingLeft="5" fontWeight="bold"/>
+		<mx:HBox width="100%" horizontalGap="5">
+			<mx:HBox verticalAlign="middle">
+				<mx:Text text="Host" width="30"/>
+				<mx:TextInput id="hostInput" width="80" text="{settings.host}" />
+			</mx:HBox>
+			<mx:HBox verticalAlign="middle">
+				<mx:Text text="Port" width="30" />
+				<mx:TextInput id="portInput" width="40" text="{settings.port}" />
+			</mx:HBox>
+		</mx:HBox>
+		<mx:HBox width="100%" verticalAlign="middle">
+			<mx:CheckBox id="securityEnabled" selected="{settings.useSecurity}" toggle="true" />
+			<mx:Text text="Security port" width="100%" enabled="{securityEnabled.selected}"/>
+			<mx:TextInput id="securityPortInput" width="40" text="{settings.securityPort}" enabled="{securityEnabled.selected}" />
+			<components:HelpTip toolTip="The flash player will ask for a XML security policy on this port before accessing the VNC port. If disabled, Flash will ask for the security policy on the VNC port. See Flashlight help pages for more info."/>
+		</mx:HBox>
+		<mx:Button label="Test security policy" click="testSecurityPort();" enabled="{securityEnabled.selected}" />
+		<mx:Button label="Test VNC connection" click="testVNCConnection();" />
+	</mx:VBox>
+	<mx:VBox width="100%" borderStyle="solid" borderColor="#AAAAAA" paddingBottom="4" paddingLeft="4" paddingRight="4" paddingTop="4">
+		<mx:Label text="VNC settings" width="100%" paddingLeft="5" fontWeight="bold"/>
+		<mx:HBox width="100%">
+			<mx:Text text="Preferred encoding" width="100%" />
+			<utils:BetterPopUpMenuButton id="encodingList" labelField="@label" dataProvider="{encodings}" />
+		</mx:HBox>
+		<mx:HBox width="100%" height="{int(XML(encodingList.selectedItem).@value)==7 ? undefined : 0}">
+			<mx:Text text="JPEG compression" width="100%" />
+			<utils:BetterPopUpMenuButton id="compressionList" labelField="@label" dataProvider="{compressions}" />
+		</mx:HBox>
+		<mx:HBox width="100%">
+			<mx:Text text="Color Depth" width="100%" />
+			<utils:BetterPopUpMenuButton id="depthList" labelField="@label" dataProvider="{depths}" />
+		</mx:HBox>
+		<mx:CheckBox id="viewOnlyCheck" label="View only" selected="{settings.viewOnly}" toggle="true" />
+		<mx:CheckBox id="shareCheck" label="Share remote screen" selected="{settings.shared}" toggle="true" />
+		<mx:CheckBox id="scaleCheck" label="Scale image" selected="{settings.scale}" toggle="true" />
+	</mx:VBox>
+	<mx:HBox width="100%" horizontalAlign="right">
+		<mx:Button label="Cancel" click="PopUpManager.removePopUp(this);" />
+		<mx:Button label="Save" click="save();PopUpManager.removePopUp(this);" />
+	</mx:HBox>
+</mx:TitleWindow>

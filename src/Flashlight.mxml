@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Copyright (C) 2009 Marco Fucci
+
+	This program is free software; you can redistribute it and/or modify it under the terms of the
+	GNU General Public License as published by the Free Software Foundation;
+	either version 2 of the License, or (at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+	without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+	See the GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License along with this program;
+	if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+	
+	Contact : mfucci@gmail.com
+-->
+
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml"
+	creationComplete="init()" xmlns:components="com.flashlight.components.*" xmlns:vnc="com.flashlight.vnc.*">
+
+	<mx:Style>
+		Application {
+			padding-bottom:0;
+			padding-left:0;
+			padding-right:0;
+			padding-top:0;
+			vertical-gap:0;
+		}
+		
+		.controls {
+			padding-bottom:5;
+			padding-left:5;
+			padding-right:5;
+			padding-top:5;
+		}
+		
+		.iconButton {
+			padding-bottom:0;
+			padding-left:0;
+			padding-right:0;
+			padding-top:0;
+		}
+		
+	</mx:Style>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.utils.URLUtil;
+			import com.flashlight.components.MorePopup;
+			import mx.formatters.SwitchSymbolFormatter;
+			import com.flashlight.vnc.VNCConst;
+			import com.flashlight.vnc.VNCSettings;
+			import com.flashlight.components.SettingsPopup;
+			import com.flashright.JsRightClick;
+			import com.flashlight.components.AskPasswordPopup;
+			import mx.managers.PopUpManager;
+			import mx.controls.Alert;
+			import mx.core.UIComponent;
+			import mx.containers.Box;
+			import mx.core.Container;
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			import mx.logging.LogEventLevel;
+			import com.flashlight.utils.ConsoleTarget;
+			
+			private static var logger:ILogger = Log.getLogger("Flashlight");
+			
+			private var mouseOnViewer:Boolean = false;
+			
+			private var popupAskPassword:AskPasswordPopup = new AskPasswordPopup();
+			
+			[Bindable] private var settings:VNCSettings = new VNCSettings();
+			[Bindable] private var hideControls:Boolean;
+			
+			private function init():void {
+				if (URLUtil.getProtocol(url) == 'file') {
+					Alert.show("WARNING:\nDue to a flash bug, Flashlight-VNC won't run well if served by the 'file' protocol in a browser, build in release mode.\nRun it from an HTTP server instead.");
+				}
+				
+				var debug:Boolean = parameters.debug == "true";
+				hideControls = parameters.hideControls == "true";
+				var autoConnect:Boolean = parameters.autoConnect == "true";
+				
+				if (!hideControls) settings.bindToSharedObject();
+				
+				if (parameters.scale) settings.scale = parameters.scale == "true";
+				if (parameters.shared) settings.shared = parameters.shared == "true";
+				if (parameters.viewOnly) settings.viewOnly = parameters.viewOnly == "true";
+				if (parameters.host) settings.host = parameters.host;
+				if (parameters.port) settings.port = int(parameters.port);
+				if (parameters.securityPort) {
+					settings.securityPort = int(parameters.securityPort);
+					settings.useSecurity = true;
+				}
+				if (parameters.encoding) {
+					switch (String(parameters.encoding).toLowerCase()) {
+						case "tight":
+							settings.encoding = VNCConst.ENCODING_TIGHT;
+							break;
+						case "hextile":
+							settings.encoding = VNCConst.ENCODING_HEXTILE;
+							break;
+						case "rre":
+							settings.encoding = VNCConst.ENCODING_RRE;
+							break;
+						case "raw":
+							settings.encoding = VNCConst.ENCODING_RAW;
+							break;
+					}
+				}
+				if (parameters.colorDepth) settings.colorDepth = int(parameters.colorDepth);
+				if (parameters.jpegCompression) settings.jpegCompression = parameters.jpegCompression;
+				
+				if (debug) {
+					var consoleBox:Box = new Box();
+					consoleBox.percentWidth = 100;
+					consoleBox.height = 200;
+					consoleBox.verticalScrollPolicy = "on";
+					
+					var console:Text = new Text();
+					console.percentWidth = 100;
+					
+					consoleBox.addChild(console);
+					this.addChild(consoleBox);
+					
+					var consoleTarget:ConsoleTarget = new ConsoleTarget(console)
+					consoleTarget.level = LogEventLevel.DEBUG;
+				}
+				
+				new JsRightClick();
+				
+				logger.debug(">> init()");
+				
+				addEventListener(Event.ENTER_FRAME, onFrameEnter);
+				
+				if (hideControls || autoConnect) vnc.connect();
+			}
+			
+			private function onFrameEnter(event:Event):void {
+				var newValue:Number;
+				var element:UIComponent = UIComponent(event.target);
+				var scrollMoved:Boolean = false;
+				
+				// prevent an error when parent is not yet created
+				if (!(element.parent is Box)) return;
+				
+				var container:Box = Box(element.parent);
+				
+				if (container.verticalScrollBar != null) {
+					var viewHeight:Number = element.height - container.maxVerticalScrollPosition;
+	        		var marginYTop:Number = viewHeight*container.verticalScrollPosition/(4*element.height) + viewHeight/8;
+	        		var verticalScrollPositionSym:Number = element.height-viewHeight-container.verticalScrollPosition;
+	        		var marginYBottom:Number = viewHeight*verticalScrollPositionSym/(4*element.height) + viewHeight/8;
+	        		var mouseY:Number = element.mouseY*element.scaleY;
+	        		var mouseYSym:Number = element.height - mouseY;
+        			
+	        		if (mouseY<container.verticalScrollPosition+marginYTop && container.verticalScrollPosition > 0) {
+        				newValue = (mouseY-viewHeight/8)/(1+viewHeight/(4*element.height))-1;
+        				newValue = Math.max(newValue,0);
+        				container.verticalScrollPosition = newValue;
+        				scrollMoved = true;
+        			}
+	        		
+	        		if (mouseYSym<verticalScrollPositionSym+marginYBottom && verticalScrollPositionSym > 0) {
+        				newValue = (mouseYSym-viewHeight/8)/(1+viewHeight/(4*element.height))-2;
+        				newValue = element.height-viewHeight-newValue;
+        				newValue = Math.min(newValue,container.maxVerticalScrollPosition);
+        				container.verticalScrollPosition = newValue;
+        				scrollMoved = true;
+        			}
+				}
+				
+				if (container.horizontalScrollBar!=null) {
+	        		var viewWidth:Number = element.width - container.maxHorizontalScrollPosition;
+	        		var marginXLeft:Number = viewWidth*container.horizontalScrollPosition/(4*element.width) + viewWidth/8;
+	        		var horizontalScrollPositionSym:Number = element.width-viewWidth-container.horizontalScrollPosition;
+	        		var marginXRight:Number = viewWidth*horizontalScrollPositionSym/(4*element.width) + viewWidth/8;
+	        		var mouseX:Number = element.mouseX*element.scaleX;
+	        		var mouseXSym:Number = element.width - mouseX;
+	        		
+	        		if (mouseX<container.horizontalScrollPosition+marginXLeft && container.horizontalScrollPosition > 0) {
+        				newValue = (mouseX-viewWidth/8)/(1+viewWidth/(4*element.width))-2;
+        				newValue =  Math.max(newValue,0);
+        				container.horizontalScrollPosition = newValue;
+        				scrollMoved = true;
+        			}
+	        		
+	        		if (mouseXSym<horizontalScrollPositionSym+marginXRight && horizontalScrollPositionSym > 0) {
+        				newValue = (mouseXSym-viewWidth/8)/(1+viewWidth/(4*element.width))-2;
+        				newValue = element.width-viewWidth-newValue;
+        				newValue = Math.min(newValue,container.maxHorizontalScrollPosition);
+        				container.horizontalScrollPosition = newValue;
+        				scrollMoved = true;
+        			}
+	        	}
+	        	
+	        	if (scrollMoved) {
+					var evenMove:MouseEvent = new MouseEvent(MouseEvent.MOUSE_MOVE);
+					evenMove.localX = vnc.screen.mouseX;
+					evenMove.localY = vnc.screen.mouseY;
+					vnc.screen.dispatchEvent(evenMove);
+	        	}
+			}
+			
+			private function onRemoteCursorMove(position:Point):void {
+				var container:Box = Box(viewer.parent);
+				
+	        	if (!mouseOnViewer || vnc.viewOnly) {
+		        	var newValue:int;
+	        		if (container.horizontalScrollBar!=null) {
+		        		var viewWidth:int = viewer.width - container.maxHorizontalScrollPosition;
+		        		var marginX:int = viewWidth/4;
+		        		
+		        		if (position.x<container.horizontalScrollPosition+marginX 
+		        			&& container.horizontalScrollPosition > 0) {
+	        				newValue = position.x-marginX;
+	        				container.horizontalScrollPosition = Math.max(newValue,0);
+	        			}
+		        		
+		        		if (position.x>container.horizontalScrollPosition+viewWidth-marginX) {
+	        				newValue = position.x+marginX-viewWidth;
+	        				container.horizontalScrollPosition = Math.min(newValue,container.maxHorizontalScrollPosition);
+	        			}
+		        	}
+	        			
+	        		if (container.verticalScrollBar!=null) {
+		        		var viewHeight:int = viewer.height - container.maxVerticalScrollPosition;
+		        		var marginY:int = viewHeight/4;
+	        			
+		        		if (position.y<container.verticalScrollPosition+marginY 
+		        			&& container.verticalScrollPosition > 0) {
+	        				newValue = position.y-marginY;
+	        				container.verticalScrollPosition = Math.max(newValue,0);
+	        			}
+		        		
+		        		if (position.y>container.verticalScrollPosition+viewHeight-marginY ) {
+	        				newValue = position.y+marginY-viewHeight;
+	        				container.verticalScrollPosition = Math.min(newValue,container.maxVerticalScrollPosition);
+	        			}
+		        	}
+	        	}
+			}
+			
+			private function onViewerRollOver(event:Event):void {
+				event.target.addEventListener(Event.ENTER_FRAME, onFrameEnter);
+				mouseOnViewer = true;
+			}
+			
+			private function onViewerRollOut(event:Event):void {
+				event.target.removeEventListener(Event.ENTER_FRAME, onFrameEnter);
+				mouseOnViewer = false;
+			}
+		]]>
+	</mx:Script>
+	
+	<vnc:VNCClient id="vnc"
+		vncError="Alert.show(event.message)" 
+		vncPasswordRequiered="popupAskPassword.show(vnc,this);"
+		vncRemoteCursor="onRemoteCursorMove(event.position)"
+		host="{settings.host}"
+		port="{settings.port}"
+		securityPort="{settings.securityPort}"
+		password="nabla"
+		viewOnly="{settings.viewOnly}"
+		shareConnection="{settings.shared}"
+		encoding="{settings.encoding}"
+		colorDepth="{settings.colorDepth}"
+		jpegCompression="{settings.jpegCompression}"/>
+	
+	<components:ScaleBox backgroundColor="#000000" clipContent="true" width="100%" height="100%">
+		<mx:Image id="viewer" source="{vnc.screen}"
+			percentHeight="{settings.scale ? 100 : undefined}"
+			percentWidth="{settings.scale ? 100 : undefined}"
+			horizontalAlign="center" verticalAlign="middle"
+			rollOver="onViewerRollOver(event)"
+			rollOut="onViewerRollOut(event)"/>
+	</components:ScaleBox>
+	
+	<mx:HBox id="controls" styleName="controls" width="100%" backgroundColor="#CCCCCC" verticalAlign="middle"
+		visible="{!hideControls}" height="{hideControls ? 0 : undefined}">
+		<mx:Text text="{vnc.status + (vnc.serverName ? ' '+vnc.serverName : '')}" width="100%" />
+		<components:ConnectButton vncClient="{vnc}" />
+		<mx:Button width="26" styleName="iconButton" toolTip="Settings" click="(new SettingsPopup()).show(settings,this);" icon="@Embed('/assets/settings.png')" />
+		<mx:Button width="26" height="24" styleName="iconButton" toolTip="More options" click="(new MorePopup()).show(vnc,this);" label="…" />
+	</mx:HBox>
+</mx:Application>

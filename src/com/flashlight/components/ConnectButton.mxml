@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Copyright (C) 2009 Marco Fucci
+
+	This program is free software; you can redistribute it and/or modify it under the terms of the
+	GNU General Public License as published by the Free Software Foundation;
+	either version 2 of the License, or (at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+	without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+	See the GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License along with this program;
+	if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+	Contact : mfucci@gmail.com
+-->
+
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml"
+	label="{getLabel(vncClient.status)}" enabled="{getEnable(vncClient.status)}"
+	click="onClick()">
+	<mx:Script>
+		<![CDATA[
+			import com.flashlight.vnc.VNCConst;
+			import com.flashlight.vnc.VNCClient;
+			
+			[Bindable] public var vncClient:VNCClient;
+			
+			private function getEnable(status:String):Boolean {
+				switch (status) {
+					case VNCConst.STATUS_NOT_CONNECTED:
+					case VNCConst.STATUS_CONNECTED:
+						return true;
+					default:
+						return false;
+				}
+			}
+			
+			private function getLabel(status:String):String {
+				switch (status) {
+					case VNCConst.STATUS_NOT_CONNECTED:
+						return "Connect";
+					case VNCConst.STATUS_CONNECTED:
+						return "Disconnect";
+					default:
+						return "Please wait";
+				}
+			}
+			
+			private function onClick():void {
+				switch (vncClient.status) {
+					case VNCConst.STATUS_NOT_CONNECTED:
+						vncClient.connect();
+						break;
+					case VNCConst.STATUS_CONNECTED:
+						vncClient.disconnect();
+						break;
+					default:
+				}
+			}
+		]]>
+	</mx:Script>
+</mx:Button>
