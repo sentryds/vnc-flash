@@ -235,6 +235,11 @@ package com.flashlight.vnc
 			
 			Mouse.hide();
 			captureKeyEvents = true;
+                        
+                        if (captureKeyEvents) {
+                                event.preventDefault();
+                                screen.stage.focus = screen.textInput;
+                        }
 		}
 		
 		public function onLocalMouseRollOut(event:MouseEvent):void {
