@@ -261,7 +261,7 @@
 		host="{settings.host}"
 		port="{settings.port}"
 		securityPort="{settings.securityPort}"
-		password="nabla"
+		password="{parameters.password}"
 		viewOnly="{settings.viewOnly}"
 		shareConnection="{settings.shared}"
 		encoding="{settings.encoding}"
