@@ -46,6 +46,7 @@
 			private function save():void {
 				settings.host = hostInput.text;
 				settings.port = int(portInput.text);
+				settings.password = passwordInput.text;
 				settings.useSecurity = securityEnabled.selected;
 				settings.securityPort = int(securityPortInput.text);
 				settings.encoding = int(XML(encodingList.selectedItem).@value);
@@ -139,6 +140,14 @@
 				<mx:TextInput id="portInput" width="40" text="{settings.port}" />
 			</mx:HBox>
 		</mx:HBox>
+                <mx:HBox width="100%" verticalAlign="middle">
+                        <mx:Text text="Password" width="70" />
+                        <mx:TextInput id="passwordInput" width="100"
+                            displayAsPassword="true"
+                            focusIn="passwordInput.displayAsPassword = false;"
+                            focusOut="passwordInput.displayAsPassword = true;"
+                            text="{settings.password}" />
+                </mx:HBox>
 		<mx:HBox width="100%" verticalAlign="middle">
 			<mx:CheckBox id="securityEnabled" selected="{settings.useSecurity}" toggle="true" />
 			<mx:Text text="Security port" width="100%" enabled="{securityEnabled.selected}"/>

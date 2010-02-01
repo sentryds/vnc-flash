@@ -91,7 +91,7 @@
 				if (parameters.viewOnly) settings.viewOnly = parameters.viewOnly == "true";
 				if (parameters.host) settings.host = parameters.host;
 				if (parameters.port) settings.port = int(parameters.port);
-				if (parameters.password) password = parameters.password;
+				if (parameters.password) settings.password = parameters.password;
 				if (parameters.securityPort) {
 					settings.securityPort = int(parameters.securityPort);
 					settings.useSecurity = true;
@@ -267,8 +267,8 @@
 		vncRemoteCursor="onRemoteCursorMove(event.position)"
 		host="{settings.host}"
 		port="{settings.port}"
+		password="{settings.password}"
 		securityPort="{settings.securityPort}"
-		password="{password}"
 		viewOnly="{settings.viewOnly}"
 		shareConnection="{settings.shared}"
 		encoding="{settings.encoding}"

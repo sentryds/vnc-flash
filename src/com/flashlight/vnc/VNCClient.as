@@ -78,9 +78,9 @@ package com.flashlight.vnc
 		
 		[Bindable] public var host:String = 'localhost';
 		[Bindable] public var port:int = 5900;
+		[Bindable] public var password:String = "<unset>";
 		[Bindable] public var securityPort:int = 0;
 		[Bindable] public var shareConnection:Boolean = true;
-		[Bindable] public var password:String;
 		
 		[Bindable] public var serverName:String;
 		[Bindable] public var screen:VNCScreen;
@@ -144,7 +144,7 @@ package com.flashlight.vnc
 		public function onSecurityVNCAuthChallenge(challenge:ByteArray):void {
 			vncAuthChallenge = challenge;
 			
-			if (password) {
+			if (password != "<unset>") {
 				sendPassword(password);
 			} else {	
 				dispatchEvent(new VNCPasswordRequieredEvent());
