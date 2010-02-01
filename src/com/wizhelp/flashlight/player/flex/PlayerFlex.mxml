@@ -22,12 +22,13 @@
 -->
 
 <!--
-	This is the VNC Player / Viewer wrapped in a Flex component.
+	This is the VNC Player wrapped in a Flex component.
 -->
 
 <mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml"
-		xmlns:fvnc="com.wizhelp.fvnc.*"
-		paddingLeft="10" paddingRight="10" paddingTop="10" xmlns:viewer="wiz.viewer.*"
+		xmlns:flashlight="com.wizhelp.flashlight.player.*"
+		xmlns:wiz="com.wizhelp.flashlight.player.flex.*"
+		paddingLeft="10" paddingRight="10" paddingTop="10" 
 		currentState="{debug ? 'debugState' : null}">
 		
 		<mx:Style>
@@ -52,6 +53,7 @@
 		
 		<mx:Script>
 			<![CDATA[
+				import com.wizhelp.utils.Logger;
 				import mx.events.CloseEvent;
 				import flash.system.fscommand;
 				import mx.events.StateChangeEvent;
@@ -99,6 +101,7 @@
 				[Bindable] private var isFullScreen:Boolean = false;
 				[Bindable] private var followMouse:Boolean = true;
 				[Bindable] private var mouseOnViewer:Boolean = false;
+				[Bindable] private var viewOnly:Boolean = false;
 				
 				private var autoZoom:Boolean = true;
 				
@@ -197,7 +200,7 @@
 	           }
             
 	           private function handleRemoteMouseMove(event:MouseEvent):void {
-		        	if (!isFullScreen && !autoZoom && (!mouseOnViewer || viewer.viewOnly)) {
+		        	if (!isFullScreen && !autoZoom && (!mouseOnViewer || viewOnly)) {
 			        	var newValue:int;
 		        		if (viewerContainer.horizontalScrollBar!=null) {
 			        		var viewWidth:int = viewer.width - viewerContainer.maxHorizontalScrollPosition;
@@ -309,32 +312,6 @@
 		        	}
 		        }
 		        
-		        [Bindable] private var connected:Boolean = false;
-		        private var connectionWindow:ConnectionWindow;
-		        
-		        private function handleConnect():void {
-		        	if (connected) {
-		        		viewer.disconnect();
-		        		connected=false;
-		        	} else {
-		        		connectionWindow = ConnectionWindow(PopUpManager.createPopUp(this,ConnectionWindow,true));
-		        		PopUpManager.centerPopUp(connectionWindow);
-		        		connectionWindow.addEventListener(CloseEvent.CLOSE,handleConnectionWindow);
-		        	}
-		        }
-		        
-		        private function handleConnectionWindow(event:CloseEvent):void {
-		        	if (!connectionWindow.canceled) {
-		        		viewer.host = connectionWindow.host;
-		        		viewer.port = int(connectionWindow.port);
-		        		viewer.password = connectionWindow.password;
-		        		viewer.securityPort = int(connectionWindow.securityPort);
-		        		viewer.connect();
-		        		connected=true;
-		        	}
-		        	connectionWindow.removeEventListener(CloseEvent.CLOSE,handleConnectionWindow);
-		        }
-		        
 				[Bindable] private var playing:Boolean = false;
 		        private function handlePlay():void {
 		        	if (playing) {
@@ -348,11 +325,7 @@
 			]]>
 		</mx:Script>
 	
-	<mx:String id="fbsFileUrl" />
-	<mx:String id="host" />
-	<mx:int id="port" />
-	<mx:int id="securityPort" />
-	<mx:Boolean id="viewerMode" />
+	<mx:String id="videoUrl" />
 	<mx:Boolean id="debug" />
 	
 	<mx:states>
@@ -363,6 +336,7 @@
 				</mx:Box>
 			</mx:AddChild>
 			<mx:SetProperty target="{mainView}" name="height" value="100%" />
+			<mx:SetProperty target="{Logger}" name="output" value="{out}" />
 		</mx:State>
 	</mx:states>
 	
@@ -370,34 +344,23 @@
 		<mx:VDividedBox id="divBox">
 			<mx:VBox id="mainView" width="100%" height="100%">
 				<mx:Box id="viewerContainer" width="100%" height="100%" backgroundColor="black" borderStyle="inset" clipContent="true">
-					<fvnc:FVNC id="viewer"
-						host="{host}"
-						port="{port}"
-						securityPort="{securityPort}"
-						password="wizhelp"
-						file="{fbsFileUrl}"
-						viewOnly="false"
-						output="{debug ? out : null}"
+					<flashlight:Player id="viewer"
+						videoUrl="{videoUrl}"
 						remoteMouseMove="handleRemoteMouseMove(event)"
 						styleName="viewer" width="100%" height="100%"
 						scaleContent="true" scaleX="{zoom}" scaleY="{zoom}"
 						enterFrame="handleMouseMove(event)"
 						rollOver="mouseOnViewer=true;"
 						rollOut="mouseOnViewer=false;"
-						playbackEnd="playing=false;"
+						videoEnd="playing=false;"
 						/>
 				</mx:Box>
 				
 				<mx:HBox horizontalAlign="right" width="100%">
-					<mx:ViewStack width="100%" selectedIndex="{viewerMode ? 1 : 0}">
-						<mx:HBox width="100%">
-							<mx:Button icon="{playing ? pauseIcon : playIcon}" click="handlePlay()" styleName="actionButton" width="24" />
-							<viewer:PlayerBar width="100%" fileLoader="{viewer.fbsLoader}" playPosition="{viewer.playPosition}"/>
-						</mx:HBox>
-						<mx:HBox width="100%">
-							<mx:Button label="{connected ? 'Disconnected' : 'Connect'}" click="handleConnect();" />
-						</mx:HBox>
-					</mx:ViewStack>
+					<mx:HBox width="100%">
+						<mx:Button icon="{playing ? pauseIcon : playIcon}" click="handlePlay()" styleName="actionButton" width="24" />
+						<wiz:PlayerBar width="100%" player="{viewer}" />
+					</mx:HBox>
 					
 	            	<mx:PopUpMenuButton id="zoomSelector" itemClick="updateZoom(event)" labelField="@label" icon="{zoomIcon}">
 	            		<mx:dataProvider>

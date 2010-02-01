@@ -24,12 +24,16 @@
 	Support of tight encoding
 */
 
-package com.wizhelp.fvnc.codec
+package com.wizhelp.flashlight.codec
 {
-	import com.wizhelp.fvnc.DataHandler;
-	import com.wizhelp.fvnc.Logger;
-	import com.wizhelp.fvnc.RFB;
-	import com.wizhelp.utils.Inflater;
+	import com.wizhelp.flashlight.rfb.RFBReader;
+	import com.wizhelp.flashlight.thread.DataHandler;
+	import com.wizhelp.flashlight.vnc.VNCHandler;
+	import com.wizhelp.flashlight.zlib.InflaterFZlib;
+	import com.wizhelp.flashlight.zlib.InflaterFlash10;
+	import com.wizhelp.utils.BufferPool;
+	import com.wizhelp.utils.Logger;
+	import com.wizhelp.utils.Thread;
 	
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
@@ -37,6 +41,7 @@ package com.wizhelp.fvnc.codec
 	import flash.events.Event;
 	import flash.geom.Point;
 	import flash.geom.Rectangle;
+	import flash.system.Capabilities;
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	
@@ -62,18 +67,18 @@ package com.wizhelp.fvnc.codec
 		private var tightDataSize:int;
 		private var tightZlibDataSize:int;
 		private var jpgLoader:Loader = new Loader();
-		private var compressedBuffer:ByteArray = new ByteArray();
-		private var uncompressedBuffer:ByteArray = new ByteArray();
 		private var bytesPerPixel:int;
+		private var useFlash10Optimization:Boolean = false;
 		
-		private var rfb:RFB;
+		private var rfbReader:RFBReader;
+		private var vnc:VNCHandler;
 		
-		public function CodecTight(rfb:RFB) {
+		public function CodecTight(vnc:VNCHandler, rfbReader:RFBReader) {
 			super(
 				1,
 					function(stream:IDataInput):void {
 						tightCode = stream.readUnsignedByte();
-						bytesPerPixel = rfb.bytesPerPixelDepth;
+						bytesPerPixel = rfbReader.bytesPerPixelDepth;
 						
 						// Flush zlib streams if we are told by the server to do so.
 						for (var i:int=0; i < 4; i++) {
@@ -86,28 +91,30 @@ package com.wizhelp.fvnc.codec
 						switch (tightCode) {
 							case TightJpeg :
 								//logger.log("TightJpeg");
-								rfb.rfbStack.unshift(
+								rfbReader.rfbStack.unshift(
 									handleTightJpegLen,
 									handleTightJpegData);
 								break;
 							case TightFill :
 								//logger.log("TightFill");
 								handleTightFill.bytesNeeded = bytesPerPixel;
-								rfb.rfbStack.unshift(handleTightFill);
+								rfbReader.rfbStack.unshift(handleTightFill);
 								break;
 							default :
 								//logger.log("Default");
 								numColors = 0;
 								useGradient = false;
-								rowSize = rfb.updateRectW;
-								rfb.rfbStack.unshift(handleTightData);
+								rowSize = rfbReader.updateRectW;
+								rfbReader.rfbStack.unshift(handleTightData);
 								if (tightCode & TightExplicitFilter) {
-									rfb.rfbStack.unshift(handleTightFilter);
+									rfbReader.rfbStack.unshift(handleTightFilter);
 								}
 						}
 					});
 				
-			this.rfb = rfb;
+			this.rfbReader = rfbReader;
+			this.vnc = vnc;
+			this.useFlash10Optimization = String(Capabilities.version.split(' ')[1]).substr(0,2) == "10";
 		}
 		
 		private var handleTightData:DataHandler = new DataHandler(
@@ -115,20 +122,20 @@ package com.wizhelp.fvnc.codec
 			function(stream:IDataInput):void {
 				if (numColors == 0)
 					rowSize *= bytesPerPixel;
-				tightDataSize = rowSize * rfb.updateRectH;
+				tightDataSize = rowSize * rfbReader.updateRectH;
 				if (tightDataSize < TightMinToCompress) {
 					if (numColors!=0) {
 						handleTightIndexedData.bytesNeeded = tightDataSize;
-						rfb.rfbStack.unshift(handleTightIndexedData);
+						rfbReader.rfbStack.unshift(handleTightIndexedData);
 					} else if (useGradient) {
 						handleTightGradientData.bytesNeeded = tightDataSize;
-						rfb.rfbStack.unshift(handleTightGradientData);
+						rfbReader.rfbStack.unshift(handleTightGradientData);
 					} else {
-						handleTightRawData.bytesNeeded = rfb.updateRectH*rfb.updateRectW*rfb.bytesPerPixel;
-						rfb.rfbStack.unshift(handleTightRawData);
+						handleTightRawData.bytesNeeded = rfbReader.updateRectH*rfbReader.updateRectW*rfbReader.bytesPerPixel;
+						rfbReader.rfbStack.unshift(handleTightRawData);
 					}
 				} else {
-					rfb.rfbStack.unshift(
+					rfbReader.rfbStack.unshift(
 						handleTightZlibLen,
 						handleTightZlibData);
 				}
@@ -143,64 +150,59 @@ package com.wizhelp.fvnc.codec
 			function(stream:IDataInput):void {
 				logger.timeStart('handleTightGradientData');
 				
-				if (rfb.rawDataBuffer.length < tightDataSize) {
-					rfb.rawDataBuffer.length = tightDataSize;
-				}
-				rfb.rawDataBuffer.position = 0;
+				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
+				var pixelsBuffer:ByteArray = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
 				
-				if (rfb.pixelsBuffer.length < 4*rfb.updateRectW*rfb.updateRectH) {
-					rfb.pixelsBuffer.length = 4*rfb.updateRectW*rfb.updateRectH;
-				}
-				rfb.pixelsBuffer.position = 0;
+				stream.readBytes(rawDataBuffer,0,tightDataSize);
 				
-				stream.readBytes(rfb.rawDataBuffer,0,tightDataSize);
-				
-				rfb.readPixels(
-					rfb.rawDataBuffer,
-					rfb.pixelsBuffer,
-					rfb.updateRectW*rfb.updateRectH,
-					rfb.bytesPerPixel != rfb.bytesPerPixelDepth);
+				rfbReader.readPixels(
+					rawDataBuffer,
+					pixelsBuffer,
+					rfbReader.updateRectW*rfbReader.updateRectH,
+					rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth);
+					
+				BufferPool.releaseDataBuffer(rawDataBuffer);
 					
 				var index:int = 0;
 				var x:int, y:int, c:int;
 				
 				index+=4;
-				for (x=1; x<rfb.updateRectW; x++) {
+				for (x=1; x<rfbReader.updateRectW; x++) {
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-4];
+					pixelsBuffer[index] += pixelsBuffer[index-4];
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-4];
+					pixelsBuffer[index] += pixelsBuffer[index-4];
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-4];
+					pixelsBuffer[index] += pixelsBuffer[index-4];
 					index++;
 				}
-				for (y=1; y<rfb.updateRectH; y++) {
+				for (y=1; y<rfbReader.updateRectH; y++) {
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-rfb.updateRectW*4];
+					pixelsBuffer[index] += pixelsBuffer[index-rfbReader.updateRectW*4];
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-rfb.updateRectW*4];
+					pixelsBuffer[index] += pixelsBuffer[index-rfbReader.updateRectW*4];
 					index++;
-					rfb.pixelsBuffer[index] += rfb.pixelsBuffer[index-rfb.updateRectW*4];
+					pixelsBuffer[index] += pixelsBuffer[index-rfbReader.updateRectW*4];
 					index++;
-					for (x=1; x<rfb.updateRectW; x++) {
+					for (x=1; x<rfbReader.updateRectW; x++) {
 						index++;
 						for (c=0; c<3; c++) {
-							var est:int = rfb.pixelsBuffer[index-rfb.updateRectW*4]
-								+ rfb.pixelsBuffer[index-4]
-								- rfb.pixelsBuffer[index-rfb.updateRectW*4-4];
+							var est:int = pixelsBuffer[index-rfbReader.updateRectW*4]
+								+ pixelsBuffer[index-4]
+								- pixelsBuffer[index-rfbReader.updateRectW*4-4];
 							if (est > 0xFF) {
 								est = 0xFF;
 							} else if (est < 0x00) {
 								est = 0x00;
 							}
-							rfb.pixelsBuffer[index++] += est;
+							pixelsBuffer[index++] += est;
 						}
 					}
 				}
 				
-				rfb.updateImage(
-					rfb.updateRect,
-					rfb.pixelsBuffer);
+				vnc.handleUpdateImage(
+					rfbReader.updateRect,
+					pixelsBuffer);
 				
 				/*var dx:int, dy:int, c:int;
 				var prevRow:ByteArray = new ByteArray();
@@ -305,29 +307,24 @@ package com.wizhelp.fvnc.codec
 			function(stream:IDataInput):void {
 				logger.timeStart('handleTightRawData');
 				
-				if (rfb.rawDataBuffer.length < tightDataSize) {
-					rfb.rawDataBuffer.length = tightDataSize;
-				}
-				rfb.rawDataBuffer.position = 0;
+				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
+				var pixelsBuffer:ByteArray = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
 				
-				if (rfb.pixelsBuffer.length < 4*rfb.updateRectW*rfb.updateRectH) {
-					rfb.pixelsBuffer.length = 4*rfb.updateRectW*rfb.updateRectH;
-				}
-				rfb.pixelsBuffer.position = 0;
-				
-				stream.readBytes(rfb.rawDataBuffer,0,tightDataSize);
-				rfb.rawDataBuffer.position = 0;
+				stream.readBytes(rawDataBuffer,0,tightDataSize);
+				rawDataBuffer.position = 0;
 				
 				//readPixels2(rawDataBuffer,newImageData,updateRectW*updateRectH);
-				rfb.readPixels(
-					rfb.rawDataBuffer,
-					rfb.pixelsBuffer,
-					rfb.updateRectW*rfb.updateRectH,
-					rfb.bytesPerPixel != rfb.bytesPerPixelDepth);
+				rfbReader.readPixels(
+					rawDataBuffer,
+					pixelsBuffer,
+					rfbReader.updateRectW*rfbReader.updateRectH,
+					rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth);
 				
-				rfb.updateImage(
-					rfb.updateRect,
-					rfb.pixelsBuffer);
+				BufferPool.releaseDataBuffer(rawDataBuffer);
+				
+				vnc.handleUpdateImage(
+					rfbReader.updateRect,
+					pixelsBuffer);
 					
 				logger.timeEnd('handleTightRawData');
 			});
@@ -343,6 +340,8 @@ package com.wizhelp.fvnc.codec
 				var y:int;
 				var color:int;
 				var dataPos:int=0;
+				var pixelsBuffer:ByteArray;
+				var rawDataBuffer:ByteArray;
 				
 				//output.text+="Indexed color data \n";
 				if (numColors == 2) {
@@ -350,27 +349,22 @@ package com.wizhelp.fvnc.codec
 					// TODO optimze this with BitmapData.paletteMap
 					var data:int;
 					var shift:int;
-					
-					if (rfb.rawDataBuffer.length < tightDataSize) {
-						rfb.rawDataBuffer.length = tightDataSize;
-					}
-					rfb.rawDataBuffer.position = 0;
-					
-					if (rfb.pixelsBuffer.length < 4*rfb.updateRectW*rfb.updateRectH) {
-						rfb.pixelsBuffer.length = 4*rfb.updateRectW*rfb.updateRectH;
-					}
-					rfb.pixelsBuffer.position = 0;
+				
+					rawDataBuffer = BufferPool.getDataBuffer(tightDataSize);
+					pixelsBuffer = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
 					
 					var index:int = 0;
 					
-					stream.readBytes(rfb.rawDataBuffer,0,tightDataSize);
+					stream.readBytes(rawDataBuffer,0,tightDataSize);
 					
-					for (y=rfb.updateRectY;y<rfb.updateRectY+rfb.updateRectH;y++) {
+					BufferPool.releaseDataBuffer(rawDataBuffer);
+					
+					for (y=rfbReader.updateRectY;y<rfbReader.updateRectY+rfbReader.updateRectH;y++) {
 						shift = 8;
-						for (x=rfb.updateRectX;x<rfb.updateRectX+rfb.updateRectW;x++) {
+						for (x=rfbReader.updateRectX;x<rfbReader.updateRectX+rfbReader.updateRectW;x++) {
 							if (shift == 8) {
 								shift = 0;
-								data = rfb.rawDataBuffer[dataPos++];
+								data = rawDataBuffer[dataPos++];
 								//output.text+="data "+data.toString(2)+"\n";
 							} else {
 								data = data << 1;
@@ -378,18 +372,18 @@ package com.wizhelp.fvnc.codec
 							
 							//output.text+=x+" "+y+" "+tightPalette[data & 0x80]+"\n";
 							color = tightPalette[(data >> 7) & 0x01];
-							rfb.pixelsBuffer[index++] = 0xFF;
-							rfb.pixelsBuffer[index++] = color>>16;
-							rfb.pixelsBuffer[index++] = color>>8;
-							rfb.pixelsBuffer[index++] = color;
+							pixelsBuffer[index++] = 0xFF;
+							pixelsBuffer[index++] = color>>16;
+							pixelsBuffer[index++] = color>>8;
+							pixelsBuffer[index++] = color;
 							
 							shift++;
 						}
 					}
 					
-					rfb.updateImage(
-						rfb.updateRect,
-						rfb.pixelsBuffer);
+					vnc.handleUpdateImage(
+						rfbReader.updateRect,
+						pixelsBuffer);
 					
 					logger.timeEnd('handleTightIndexedData2');
 				} else {
@@ -416,13 +410,10 @@ package com.wizhelp.fvnc.codec
 						tmpBitmapHeigth = maxBitmapHeigth;
 					}
 					
-					if (rfb.rawDataBuffer.length < tightDataSize + emptyFills) {
-						rfb.rawDataBuffer.length = tightDataSize + emptyFills;
-					}
-					rfb.rawDataBuffer.position = 0;
+					rawDataBuffer = BufferPool.getDataBuffer(tightDataSize+emptyFills);
 					
-					stream.readBytes(rfb.rawDataBuffer,0,tightDataSize);
-					rfb.rawDataBuffer.position = 0;
+					stream.readBytes(rawDataBuffer,0,tightDataSize);
+					rawDataBuffer.position = 0;
 					
 					/*logger.log(rfb.updateRectX+" "+rfb.updateRectY+" "+rfb.updateRectW+" "+rfb.updateRectH);
 					logger.log(tightDataSize+" ");
@@ -433,9 +424,9 @@ package com.wizhelp.fvnc.codec
 					var tmpBitmapDataIndexedAlpha:BitmapData = new BitmapData(tmpBitmapWidth,tmpBitmapHeigth,true,0xFFFFFFFF);
 					var tmpBitmapDataFull:BitmapData = new BitmapData(tmpBitmapWidth*4,tmpBitmapHeigth,false,0xFFFFFFFF);
 					
-					tmpBitmapDataIndexed.setPixels(tmpBitmapDataIndexed.rect,rfb.rawDataBuffer);
-					rfb.rawDataBuffer.position = 0;
-					tmpBitmapDataIndexedAlpha.setPixels(tmpBitmapDataIndexed.rect,rfb.rawDataBuffer);
+					tmpBitmapDataIndexed.setPixels(tmpBitmapDataIndexed.rect,rawDataBuffer);
+					rawDataBuffer.position = 0;
+					tmpBitmapDataIndexedAlpha.setPixels(tmpBitmapDataIndexed.rect,rawDataBuffer);
 					
 					for (i = 0;i<tmpBitmapWidth;i++) {
 						tmpBitmapDataFull.paletteMap(tmpBitmapDataIndexedAlpha,
@@ -471,10 +462,10 @@ package com.wizhelp.fvnc.codec
 							nullPalette);
 					}
 					
-					var pixelsBuffer:BitmapData = tmpBitmapDataFull.getPixels(tmpBitmapDataFull.rect);
+					pixelsBuffer = tmpBitmapDataFull.getPixels(tmpBitmapDataFull.rect);
 					pixelsBuffer.position = 0;
-					rfb.updateImage(
-						rfb.updateRect,
+					vnc.handleUpdateImage(
+						rfbReader.updateRect,
 						pixelsBuffer);
 					/*var colorIndex:int;
 					var maxX:int = rfb.updateRectX +rfb.updateRectW;
@@ -556,7 +547,7 @@ package com.wizhelp.fvnc.codec
 				//output.text+="TightFilter : "+filterId+"\n";
 				switch (filterId) {
 					case TightFilterPalette :
-						rfb.rfbStack.unshift(handleTightPaletteHeader);
+						rfbReader.rfbStack.unshift(handleTightPaletteHeader);
 					break;
 					case TightFilterGradient :
 						//output.text+="TightFilterGradient : "+filterId+"\n";
@@ -576,18 +567,18 @@ package com.wizhelp.fvnc.codec
 				numColors = stream.readUnsignedByte()+1;
 				//output.text+="TightFilterPalette : "+numColors+"\n";
 				handleTightPaletteColors.bytesNeeded = numColors*bytesPerPixel;
-				rfb.rfbStack.unshift(handleTightPaletteColors);
+				rfbReader.rfbStack.unshift(handleTightPaletteColors);
 			});
 		
 		private var handleTightPaletteColors:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
 				for (var i:int=0;i<numColors;i++) {
-					tightPalette[i] = rfb.readPixel(stream,rfb.bytesPerPixel != rfb.bytesPerPixelDepth);
+					tightPalette[i] = rfbReader.readPixel(stream,rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth);
 				}
 				
 				if (numColors == 2)
-					rowSize = (rfb.updateRectW + 7) / 8;
+					rowSize = (rfbReader.updateRectW + 7) / 8;
 			});
 		
 		private var handleTightZlibLen:DataHandler = new DataHandler(
@@ -602,75 +593,67 @@ package com.wizhelp.fvnc.codec
 		* TODO : improve Flash 9 support by using pseudo-multithreading
 		*				function has to be split in small ones taking less than 20ms each
 		*/
+		private var inflater:*;
 		private var handleTightZlibData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
 				logger.timeStart('handleTightZlibData');
 				
-				if (compressedBuffer.length < tightZlibDataSize) {
-					compressedBuffer.length = tightZlibDataSize;
-				}
-				/*if (uncompressedBuffer.length < tightDataSize) {
-					uncompressedBuffer.length = tightDataSize;
-				}*/
-				
+				var compressedBuffer:ByteArray = BufferPool.getDataBuffer(tightZlibDataSize);
 				stream.readBytes(compressedBuffer,0,tightZlibDataSize);
-				/*var zlibData:Array = new Array(handleTightZlibData.bytesNeeded);
-				var tightData:Array = new Array(tightDataSize);
-				var i:int;*/
 				
-				/*for (i=0;i<zlibData.length;i++) {
-					zlibData[i]=stream.readUnsignedByte();
-				}*/
 				var streamId:int = tightCode & 0x03;
-				var inflater:Inflater = tightInflaters[streamId];
-				if (inflater == null) {
-					inflater = new Inflater();
-					tightInflaters[streamId] = inflater;
-				}
+				inflater = tightInflaters[streamId];
 				
-				//inflater.setInput(compressedBuffer,0,tightZlibDataSize);
-				//uncompressedStream.length = tightDataSize;
-				
-				logger.timeStart('inflater');
-				
-				uncompressedBuffer = inflater.inflate(compressedBuffer,tightZlibDataSize, tightDataSize);
-				//inflater.inflate(uncompressedBuffer,0,tightDataSize);
-				logger.timeEnd('inflater');
-
-				/*for (i=0;i<tightData.length;i++) {
-					uncompressedStream.writeByte(tightData[i]);
-				}
-				uncompressedStream.position = 0;*/
-				//uncompressedBuffer.position = 0;
-				
-				logger.timeEnd('handleTightZlibData');
-				
-				logger.timeStart('handlingTightZlibData');
-				if (numColors!=0) {
-					handleTightIndexedData.bytesNeeded = tightDataSize;
-					handleTightIndexedData.call(uncompressedBuffer);
-				} else if (useGradient) {
-					handleTightGradientData.bytesNeeded = tightDataSize;
-					handleTightGradientData.call(uncompressedBuffer);
+				if (useFlash10Optimization) {
+					if (inflater == null) {
+						inflater = new InflaterFlash10();
+						tightInflaters[streamId] = inflater;
+					}
+					
+					logger.timeStart('inflater');
+					inflater.inflate(compressedBuffer,tightZlibDataSize, tightDataSize);
+					logger.timeEnd('inflater');
 				} else {
-					handleTightRawData.bytesNeeded = rfb.updateRectH*rfb.updateRectW*rfb.bytesPerPixel;
-					handleTightRawData.call(uncompressedBuffer);
+					if (inflater == null) {
+						inflater = new InflaterFZlib();
+						tightInflaters[streamId] = inflater;
+					}
+					
+					inflater.inflateThreaded(compressedBuffer,tightZlibDataSize, tightDataSize);
 				}
-				logger.timeEnd('handlingTightZlibData');
-			});	
+				
+				Thread.currentThread.stack.push(processUncompressedData);
+			});
+			
+		private function processUncompressedData():void {
+			logger.timeEnd('handleTightZlibData');
+				
+			logger.timeStart('handlingTightZlibData');
+			if (numColors!=0) {
+				handleTightIndexedData.bytesNeeded = tightDataSize;
+				handleTightIndexedData.call(inflater.uncompressedData);
+			} else if (useGradient) {
+				handleTightGradientData.bytesNeeded = tightDataSize;
+				handleTightGradientData.call(inflater.uncompressedData);
+			} else {
+				handleTightRawData.bytesNeeded = rfbReader.updateRectH*rfbReader.updateRectW*rfbReader.bytesPerPixel;
+				handleTightRawData.call(inflater.uncompressedData);
+			}
+			logger.timeEnd('handlingTightZlibData');
+		}
 			
 		private var handleTightFill:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				var color:uint = rfb.readPixel(stream,rfb.bytesPerPixel != rfb.bytesPerPixelDepth);
+				var color:uint = rfbReader.readPixel(stream,rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth);
 				var rect:Rectangle = new Rectangle(
-					rfb.updateRectX,
-					rfb.updateRectY,
-					rfb.updateRectW,
-					rfb.updateRectH);
-				rfb.updateImageFillRect(
-					rfb.updateRect,
+					rfbReader.updateRectX,
+					rfbReader.updateRectY,
+					rfbReader.updateRectW,
+					rfbReader.updateRectH);
+				vnc.handleUpdateImageFillRect(
+					rfbReader.updateRect,
 					color);
 			});
 			
@@ -685,33 +668,29 @@ package com.wizhelp.fvnc.codec
 			function(stream:IDataInput):void {
 				logger.timeStart('handleTightJpegData');
 				
-				if (rfb.rawDataBuffer.length < tightDataSize) {
-					rfb.rawDataBuffer.length = tightDataSize;
-				}
-				rfb.rawDataBuffer.position = 0;
+				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
 				
-				stream.readBytes(rfb.rawDataBuffer,0,handleTightJpegData.bytesNeeded);
+				stream.readBytes(rawDataBuffer,0,handleTightJpegData.bytesNeeded);
 				
-				jpgLoader.loadBytes(rfb.rawDataBuffer);
+				jpgLoader.loadBytes(rawDataBuffer);
 				
-				jpgLoader.contentLoaderInfo.addEventListener(Event.COMPLETE,handleTightJpegComplete);
+				BufferPool.releaseDataBuffer(rawDataBuffer);
 				
-				rfb.pause(stream);
+				Thread.currentThread.stack.unshift(handleTightJpegComplete);
+				Thread.currentThread.wait(jpgLoader.contentLoaderInfo, Event.COMPLETE);
 			});		
 		
-		private function handleTightJpegComplete(event:Event):void {
+		private function handleTightJpegComplete():void {
 			var jpegImage:BitmapData = Bitmap(jpgLoader.content).bitmapData;
 				
-			rfb.updateImage(
-				rfb.updateRect,
+			vnc.handleUpdateImage(
+				rfbReader.updateRect,
 				jpegImage.getPixels(jpegImage.rect)
 				);
 			
 			jpgLoader.unload();
 			
 			logger.timeEnd('handleTightJpegData');
-			
-			rfb.resume();
 		}
 			
 		private function readCompactLen(stream:IDataInput):int {

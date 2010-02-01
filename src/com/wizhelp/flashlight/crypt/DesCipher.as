@@ -89,7 +89,7 @@
 // @see EncryptedOutputStream
 // @see EncryptedInputStream
 
-package com.wizhelp.utils {
+package com.wizhelp.flashlight.crypt {
 	import flash.utils.ByteArray;
 	
 	public class DesCipher {

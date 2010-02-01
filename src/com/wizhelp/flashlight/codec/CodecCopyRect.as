@@ -24,34 +24,28 @@
 	Support of copyRect encoding
 */
 
-package com.wizhelp.fvnc.codec
+package com.wizhelp.flashlight.codec
 {
-	import com.wizhelp.fvnc.DataHandler;
-	import com.wizhelp.fvnc.RFB;
+	import com.wizhelp.flashlight.rfb.RFBReader;
+	import com.wizhelp.flashlight.thread.DataHandler;
+	import com.wizhelp.flashlight.vnc.VNCHandler;
 	
 	import flash.geom.Point;
-	import flash.geom.Rectangle;
-	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	
 	public class CodecCopyRect extends DataHandler
 	{
-		private var rfb:RFB;
-		
-		public function CodecCopyRect(rfb:RFB) {
+		public function CodecCopyRect(vnc:VNCHandler, rfbReader:RFBReader) {
 			super(
 				4,
 				function(stream:IDataInput):void {
 				    var copyRectSrcX:int = stream.readUnsignedShort();
 				    var copyRectSrcY:int = stream.readUnsignedShort();
 				    
-				    rfb.copyImage(
+				    vnc.handleCopyImage(
 				    	new Point(copyRectSrcX, copyRectSrcY),
-				    	rfb.updateRect);
-				    	
+				    	rfbReader.updateRect);
 				});
-			
-			this.rfb = rfb;
 		}
 	}
 }

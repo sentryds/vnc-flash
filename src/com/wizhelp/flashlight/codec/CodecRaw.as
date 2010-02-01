@@ -24,46 +24,39 @@
 	Support of raw encoding
 */
 
-package com.wizhelp.fvnc.codec
+package com.wizhelp.flashlight.codec
 {
-	import com.wizhelp.fvnc.DataHandler;
-	import com.wizhelp.fvnc.RFB;
+	import com.wizhelp.flashlight.rfb.RFBReader;
+	import com.wizhelp.flashlight.thread.DataHandler;
+	import com.wizhelp.flashlight.vnc.VNCHandler;
+	import com.wizhelp.utils.BufferPool;
 	
-	import flash.geom.Rectangle;
+	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 
 	public class CodecRaw extends DataHandler
 	{
-		private var rfb:RFB;
-		
-		public function CodecRaw(rfb:RFB)
+		public function CodecRaw(vnc:VNCHandler, rfbReader:RFBReader)
 		{
 			super(0,
 				function(stream:IDataInput):void {
-					if (rfb.rawDataBuffer.length < this.bytesNeeded) {
-						rfb.rawDataBuffer.length = this.bytesNeeded;
-					}
-					rfb.rawDataBuffer.position = 0;
+					var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(this.bytesNeeded);
+					var pixelsBuffer:ByteArray = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
 					
-					if (rfb.pixelsBuffer.length < 4*rfb.updateRectW*rfb.updateRectH) {
-						rfb.pixelsBuffer.length = 4*rfb.updateRectW*rfb.updateRectH;
-					}
-					rfb.pixelsBuffer.position = 0;
+					stream.readBytes(rawDataBuffer,0,this.bytesNeeded);
+					rawDataBuffer.position = 0;
 					
-					stream.readBytes(rfb.rawDataBuffer,0,this.bytesNeeded);
-					rfb.rawDataBuffer.position = 0;
+					rfbReader.readPixels(
+						rawDataBuffer,
+						pixelsBuffer,
+						rfbReader.updateRectW*rfbReader.updateRectH);
 					
-					rfb.readPixels(
-						rfb.rawDataBuffer,
-						rfb.pixelsBuffer,
-						rfb.updateRectW*rfb.updateRectH);
+					BufferPool.releaseDataBuffer(rawDataBuffer);
 					
-					rfb.updateImage(
-						rfb.updateRect,
-						rfb.pixelsBuffer);
+					vnc.handleUpdateImage(
+						rfbReader.updateRect,
+						pixelsBuffer);
 				});
-				
-			this.rfb = rfb;
 		}
 		
 	}

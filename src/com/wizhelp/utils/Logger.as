@@ -25,9 +25,11 @@
 	(I don't like trace() function in flash ...)
 */
 
-package com.wizhelp.fvnc
+package com.wizhelp.utils
 {
 	import flash.utils.getQualifiedClassName;
+	import flash.utils.getTimer;
+	
 	import mx.controls.Text;
 	
 	public class Logger
@@ -44,23 +46,29 @@ package com.wizhelp.fvnc
 		private static var timers:Object = new Object();
 		
 		public function timeStart(identifier:String):void {
-			timersStart[identifier] = (new Date()).getTime();
-		}
-		
-		public function timeEnd(identifier:String):void {
-			if (timers[identifier] == undefined) timers[identifier]=0; 
-			timers[identifier] += (new Date()).getTime() - timersStart[identifier];
-		}
-		
-		public static  function logTimers():void {
-			for (var name:String in timers) {
-				output.text+=name+" "+timers[name]+"\n";
+			if (output!=null) {
+				timersStart[identifier] = getTimer();
 			}
 		}
 		
-		public function log(string:String):void {
+		public function timeEnd(identifier:String):void {
 			if (output!=null) {
-				output.text+=string+"\n";
+				if (timers[identifier] == undefined) timers[identifier]=0; 
+				timers[identifier] += getTimer() - timersStart[identifier];
+			}
+		}
+		
+		public static  function logTimers():void {
+			if (output!=null) {
+				for (var name:String in timers) {
+					output.text+=name+" "+timers[name]+"\n";
+				}
+			}
+		}
+		
+		public function log(message:*):void {
+			if (output!=null) {
+				output.text+=getTimer()+" "+name+" "+message+"\n";
 				//output.text.concat(string,"\n");
 			}
 		}

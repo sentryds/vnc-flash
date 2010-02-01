@@ -20,7 +20,7 @@
 	
 */
 
-/*
+/**
 	Read a stream of data in FBS 1.0 format
 	
 	TODO: create a FBS 2.0 format with the following features:
@@ -31,24 +31,47 @@
 */
 
 
-package com.wizhelp.fvnc
+package com.wizhelp.flashlight.fbs
 {
+	import com.wizhelp.flashlight.thread.DataHandler;
+	import com.wizhelp.utils.Logger;
+	
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
-	import flash.utils.setTimeout;
+	import flash.utils.getTimer;
 	
-	public class FBS
+	public class FBSReader
 	{	
 		private var logger:Logger = new Logger(this);
 		
 		private var fbsPacketSize:uint;
 		private var fbsPacketSizeIgnored:uint;
-		private var startTime:Number;
-		private var filePosition:int=0;
+		private var startTime:int;
+		public var filePosition:int=0;
 		
-		private static const readAheadTime:int = 2000;
+		public var input:IDataInput;
+		public var output:ByteArray;
 		
-		public var onIncomingData:Function;
+		public var newDataBlock:Boolean = false;
+		public var dataBlockTime:int;
+			
+		private var fbsStack:Array = new Array();
+		
+		public function FBSReader() {
+			fbsStack.push(handleFBS);
+		}
+		
+		public function hasEnoughData():Boolean {
+			if (fbsStack.length > 0 && input.bytesAvailable >= fbsStack[0].bytesNeeded) {
+				return true;
+			}
+			return false;
+		}
+		
+		public function run():void {
+			var fbsHandler:DataHandler = fbsStack.shift();
+			fbsHandler.call(input);
+		}
 		
 		private var handleFBS:DataHandler = new DataHandler(
 			0,
@@ -62,13 +85,14 @@ package com.wizhelp.fvnc
 			function(stream:IDataInput):void {
 				var version:String = stream.readUTFBytes(12);
 				logger.log(version);
-				startTime=(new Date()).getTime();
+				startTime=getTimer();
 				filePosition+=12;
 			});
 		
 		private var handleFBSPacket:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
+				newDataBlock = false;
 				fbsStack.push(handleFBSPacketHeader);
 				fbsStack.push(handleFBSPacketData);
 				fbsStack.push(handleFBSPacketTimeStamp);
@@ -100,72 +124,15 @@ package com.wizhelp.fvnc
 		private var handleFBSPacketTimeStamp:DataHandler = new DataHandler(
 			4,
 			function(stream:IDataInput):void {
-				var timeStamp:uint = stream.readUnsignedInt();
+				dataBlockTime = stream.readUnsignedInt();
 				filePosition+=4;
 				
-				var currentTime:Number = (new Date()).getTime();
-				
-				/*output.text+="buffer size : "+fbsBuffer.length+"\n";
-				output.text+="time stamp :"+timeStamp+"\n";*/
-				
-				if (currentTime>startTime+timeStamp) {
-					startTime = currentTime - timeStamp + 5;
-				}
-				
-				setTimeout(handleOutcomingData,startTime+timeStamp-currentTime,stream);
+				var oldPos:int = output.position;
+				output.position = output.length;
+				output.writeBytes(fbsBuffer);
+				output.position = oldPos;
+				newDataBlock = true;
+				fbsStack.push(handleFBSPacket);
 			});
-			
-		private var fbsStack:Array = new Array();
-		private var fbsHandler:DataHandler = handleFBS;
-		
-		public function handleData(stream:IDataInput):void {
-			if (fbsHandler ==  null) {
-				fbsHandler = fbsStack.shift();
-			}
-			while (!paused && fbsHandler != null && stream.bytesAvailable >= fbsHandler.bytesNeeded) {
-				fbsHandler.call(stream);
-				fbsHandler = fbsStack.shift();
-			}
-		}
-		
-		private var outcomingBuffer:ByteArray = new ByteArray();
-		private function sendData():void {
-			var oldPos:int = outcomingBuffer.position;
-			outcomingBuffer.position = outcomingBuffer.length;
-			outcomingBuffer.writeBytes(fbsBuffer);
-			outcomingBuffer.position = oldPos;
-			//output.text+="total buffer : "+outcomingBuffer.length+"\n";
-			onIncomingData(outcomingBuffer,filePosition);
-			fbsStack.push(handleFBSPacket);
-		}
-		
-		private function handleOutcomingData(stream:IDataInput):void {
-			sendData();
-			handleData(stream);
-		}
-		
-		private var paused:Boolean = false;
-		public function next(stream:IDataInput):void {
-			if (fbsHandler ==  null) {
-				fbsHandler = fbsStack.shift();
-			}
-			if (fbsHandler != null && stream.bytesAvailable >= fbsHandler.bytesNeeded) {
-				fbsHandler.call(stream);
-				fbsHandler = fbsStack.shift();
-			}
-		}
-		
-		private var pauseStartTime:int;
-		public function pause():void {
-			paused = true;
-			pauseStartTime = (new Date()).getTime();
-		}
-		
-		public function play(stream:IDataInput):void {
-			paused = false;
-			var currentTime:int = (new Date()).getTime();
-			startTime += currentTime - pauseStartTime;
-			handleData(stream);
-		}
 	}
 }

@@ -23,13 +23,11 @@
 /*
 	Simulates multi-threading in Flash
 	
-	I didn't finished to write it and it is not used yet.
+	This is competly bugged and only works for one thread in NormalPriority
 */
 
 package com.wizhelp.utils
 {
-	import com.wizhelp.fvnc.Logger;
-	
 	import flash.display.DisplayObject;
 	import flash.display.MovieClip;
 	import flash.display.Sprite;
@@ -40,7 +38,7 @@ package com.wizhelp.utils
 	
 	import mx.controls.Text;
 	
-	public class PseudoThread {
+	public class Thread {
 		// ************* Constants **************
 		/** max time (in ms) between leaving hand to system */
 		private static const MAX_BUSY_TIME:int = 500;
@@ -67,13 +65,13 @@ package com.wizhelp.utils
 		
 		// ************* Static fields **************
 		/** Logger */
-		private static var logger:Logger = new Logger(PseudoThread);
+		private static var logger:Logger = new Logger(Thread);
 		
 		/** Array of array of Threads, group by priorities */
 		private static var threads:Array = new Array();
 		
 		/** Thread currently executed */
-		private static var currentThread:PseudoThread = null;
+		public static var currentThread:Thread = null;
 		
 		// ************* PseudoThread fields **************
 		/** List of functions to call for this thread */
@@ -96,8 +94,8 @@ package com.wizhelp.utils
 		
 		// ************* Functions **************
 		/** Constructor */
-		public  function PseudoThread(runFunction:Function, priority:int = PRIORITY_NORMAL) {
-			logger.log(">> PseudoThread()");
+		public  function Thread(runFunction:Function = null, priority:int = PRIORITY_NORMAL) {
+			logger.log(">> Thread()");
 			
 			var threadsSamePriority:Array = threads[priority];
 			
@@ -107,16 +105,25 @@ package com.wizhelp.utils
 			}
 			
 			threadsSamePriority.push(this);
-			stack.push(runFunction);
+			if (runFunction != null) {
+				stack.push(runFunction);
+			}
 			
-			logger.log("<< PseudoThread()");
+			systemManager.stage.addChild(displayObject);
+			systemManager.stage.addEventListener(Event.ENTER_FRAME,enterFrameHandler,false,100);
+			
+			displayObject.addEventListener(Event.RENDER,dispatchCPUTime,false,100);
+			
+			state = 	STATE_NOT_STARTED;
+			stack.push(this.run);
+			
+			logger.log("<< Thread()");
 		}
 		
 		/** Start this thread */
 		public function start():void {
 			logger.log(">> start()");
 			
-	systemManager.stage.addChild(displayObject);
 			switch (state) {
 				case STATE_NOT_STARTED:
 				case STATE_FINISHED:
@@ -129,40 +136,45 @@ package com.wizhelp.utils
 			logger.log("<< start()");
 		}
 		
+		public function run():void {
+			logger.log(">> run()");
+			
+			logger.log("<< run()");
+		}
+		
 		/** Sleep (time in ms) */
 		public function sleep(duration:int):void {
-			logger.log(">> sleep()");
+			//logger.log(">> sleep()");
 			
 			state = STATE_SLEEPING;
 			setTimeout(awakeThread,duration);
 			
-			logger.log("<< sleep()");
+			//logger.log("<< sleep()");
 		}
 		
 		/** Wait until the object send a specified event */
 		public function wait(object:EventDispatcher, eventType:String):void {
-			logger.log(">> wait()");
+			//logger.log(">> wait()");
 			
 			state = STATE_WAITING;
 			object.addEventListener(eventType, awakeThread);
 			waitingObject = object;
 			waitingEvent = eventType;
 			
-			logger.log("<< wait()");
+			//logger.log("<< wait()");
 		}
 		
 		/** Awake a sleeping or waiting thread */
 		private function awakeThread(event:Event = null):void {
-			logger.log(">> awakeThread()");
+			//logger.log(">> awakeThread()");
 			
 			if (state == STATE_WAITING) {
 				waitingObject.removeEventListener(waitingEvent,awakeThread);
 			}
 			
 			state = STATE_RUNNING;
-			setTimeout(dispatchCPUTime,1);
 			
-			logger.log("<< awakeThread()");
+			//logger.log("<< awakeThread()");
 		}
 		
 		/** Run the next function in functions list for this thread */
@@ -174,7 +186,11 @@ package com.wizhelp.utils
 			lastRunTime = getTimer();
 			
 			if (currentFunction !=null) {
-				currentFunction.call(currentThread);
+				try {
+					currentFunction.call(currentThread);
+				} catch (e:Error) {
+					logger.log("An error occured during thread execution : "+e.getStackTrace());
+				}
 			} else {
 				state = STATE_FINISHED;
 			}
@@ -190,13 +206,13 @@ package com.wizhelp.utils
 		public static var out:Text;
 		public static var totalTime:int;
 		private static var end:int;
+		
 		/** Dispatch CPU time between threads and background system tasks */
 		private static function dispatchCPUTime(event:Event=null):void {
 			//logger.log(">> dispatchCPUTime()");
 			
 			if (start == 0 ) start = getTimer();
 			var runningStart:int = getTimer();
-			trace(getTimer());
 			//logger.log((runningStart-last)+"");
 			
 			for (var i:int=PRIORITY_HIGH; i>=PRIORITY_LOW ; i--) {
@@ -206,9 +222,9 @@ package com.wizhelp.utils
 					
 					while (true) {
 						var oldestRun:int = int.MAX_VALUE;
-						var threadToRun:PseudoThread = null;
+						var threadToRun:Thread = null;
 						
-						for each (var thread:PseudoThread in threadsSamePriority) {
+						for each (var thread:Thread in threadsSamePriority) {
 							if (thread.state == STATE_RUNNING) {
 								thread.runPart();
 								if (oldestRun>thread.lastRunTime) {
@@ -222,9 +238,8 @@ package com.wizhelp.utils
 							var currentTime:int = getTimer();
 							if (currentTime > end) {
 								totalTime += currentTime-runningStart;
-								out.text = String(totalTime/(currentTime-start));
+								//out.text = String(totalTime/(currentTime-start));
 								//setTimeout(dispatchCPUTime,70);
-								systemManager.stage.addEventListener(Event.ENTER_FRAME,enterFrameHandler,false,100);
 								//Application.application.stage.invalidate();
 								//logger.log("<< dispatchCPUTime()");
 								return;
@@ -237,10 +252,16 @@ package com.wizhelp.utils
 							break;
 						}
 					}
+					
+					threads[i] = threadsSamePriority.filter(filterInactive);
 				}
 			}
 			
 			//logger.log("<< dispatchCPUTime()");
+		}
+		
+		private static  function filterInactive(thread:Thread, index:int, arr:Array):Boolean {
+			return thread.state != STATE_FINISHED;
 		}
 		
 		private static var displayObject:DisplayObject = new Sprite();
@@ -248,13 +269,10 @@ package com.wizhelp.utils
 		private static function enterFrameHandler(event:Event):void {
 			var start:int = getTimer();
 			var fr:Number = Math.floor(1000 / systemManager.stage.frameRate);
-			end = start + fr + 40;
+			end = start + fr;
 			
 			systemManager.stage.invalidate();
-			displayObject.addEventListener(Event.RENDER,dispatchCPUTime,false,100);
-								
 		 }
-		
 	}
 	
 }

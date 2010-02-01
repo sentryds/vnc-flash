@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
+/*
 
-<!--
 	Copyright (C) 2008 Marco Fucci
 
 	This library is free software; you can redistribute it and/or
@@ -18,19 +17,29 @@
 	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 	
 	Contact : mfucci@gmail.com
-
--->
-
-<!--
-	A simple player bar:
-		_ stream position
-		_ play position
--->
-
-<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml">
-	<mx:Number id="playPosition" />
-	<mx:Object id="fileLoader" />
 	
-	<mx:ProgressBar id="progress" width="100%" source="{fileLoader}" label="" y="8"/>
-	<mx:Image id="index" source="@Embed('/assets/slide.png')" x="{playPosition*(progress.width-index.width)/progress.maximum}" y="3"/>
-</mx:Canvas>
+*/
+
+/*
+	Hack to override default Flex behaviour when calculating size.
+*/
+
+package com.wizhelp.flashlight.vnc
+{
+	import flash.display.Sprite;
+
+	public class VNCScreen extends Sprite
+	{
+		public var fixedWidth:int=0;
+		public var fixedHeigth:int=0;
+		private var actionStack:Array = new Array();
+		
+		override public function get height():Number {
+			return fixedHeigth;
+		}
+		
+		override public function get width():Number {
+			return fixedWidth;
+		} 
+	}
+}

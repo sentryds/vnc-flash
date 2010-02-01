@@ -42,22 +42,22 @@
 	
     <mx:HBox width="100%">
         <mx:Label text="Host: "/>
-        <mx:TextInput id="hostField" width="100%" text="localhost"/>
+        <mx:TextInput id="hostField" width="100%" text="{host}"/>
     </mx:HBox>
 
     <mx:HBox width="100%">
         <mx:Label text="Port: "/>
-        <mx:TextInput id="portField" width="100%" text="5900"/>
+        <mx:TextInput id="portField" width="100%" text="{port}"/>
     </mx:HBox>
     
      <mx:HBox width="100%">
         <mx:Label text="Password (if any): "/>
-        <mx:TextInput id="passwordField" width="100%" text="wizhelp" displayAsPassword="true" />
+        <mx:TextInput id="passwordField" width="100%" text="{password}" displayAsPassword="true" />
     </mx:HBox>
     
      <mx:HBox width="100%">
         <mx:Label text="Security policy port: "/>
-        <mx:TextInput id="securityPortField" width="100%" text="5950" />
+        <mx:TextInput id="securityPortField" width="100%" text="{securityPort}" />
     </mx:HBox>
     
     <mx:HBox horizontalAlign="right" width="100%">

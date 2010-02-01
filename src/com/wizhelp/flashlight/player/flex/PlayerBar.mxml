@@ -1,5 +1,6 @@
-/*
+<?xml version="1.0" encoding="utf-8"?>
 
+<!--
 	Copyright (C) 2008 Marco Fucci
 
 	This library is free software; you can redistribute it and/or
@@ -17,32 +18,19 @@
 	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 	
 	Contact : mfucci@gmail.com
+
+-->
+
+<!--
+	A simple player bar:
+		_ stream position
+		_ play position
+-->
+
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	xmlns:wiz="com.wizhelp.flashlight.player.*">
+	<wiz:Player id="player" />
 	
-*/
-
-/*
-	Support of cursorPos pseudo-encoding
-*/
-
-package com.wizhelp.fvnc.codec
-{
-	import com.wizhelp.fvnc.DataHandler;
-	import com.wizhelp.fvnc.RFB;
-	
-	import flash.utils.IDataInput;
-
-	public class CodecCursorPos extends DataHandler
-	{
-		private var rfb:RFB;
-		
-		public function CodecCursorPos(rfb:RFB)
-		{
-			super(0,
-				function(stream:IDataInput):void {
-					rfb.updateCursorPosition(rfb.updateRectX,rfb.updateRectY);
-				});
-			this.rfb = rfb;
-		}
-		
-	}
-}
+	<mx:ProgressBar id="progress" width="100%" source="{player.videoLoader}" label="" y="8"/>
+	<mx:Image id="index" source="@Embed('/assets/slide.png')" x="{player.currentPosition*(progress.width-index.width)/player.videoDuration}" y="3"/>
+</mx:Canvas>

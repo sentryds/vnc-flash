@@ -23,10 +23,9 @@
 /*
 	This class provide a way to stop execution until enough data has been received.
 	(pseudo-multithreading)
-	Will be refactored in the next release
 */
 
-package com.wizhelp.fvnc
+package com.wizhelp.flashlight.thread
 {
 	public class DataHandler
 	{

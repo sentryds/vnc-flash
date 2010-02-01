@@ -21,24 +21,28 @@
 */
 
 /*
-	Contains a mouse pointer and a screen view
+	Support of cursorPos pseudo-encoding
 */
 
-package com.wizhelp.fvnc
+package com.wizhelp.flashlight.codec
 {
-	import flash.display.Sprite;
+	import com.wizhelp.flashlight.rfb.RFBReader;
+	import com.wizhelp.flashlight.thread.DataHandler;
+	import com.wizhelp.flashlight.vnc.VNCHandler;
+	
+	import flash.utils.IDataInput;
 
-	public class RemoteScreenContainer extends Sprite
+	public class CodecCursorPos extends DataHandler
 	{
-		public var fixedWidth:int=0;
-		public var fixedHeigth:int=0;
-		
-		override public function get height():Number {
-			return fixedHeigth;
+		public function CodecCursorPos(vnc:VNCHandler, rfbReader:RFBReader)
+		{
+			super(0,
+				function(stream:IDataInput):void {
+					vnc.handleUpdateCursorPosition(
+						rfbReader.updateRectX,
+						rfbReader.updateRectY);
+				});
 		}
 		
-		override public function get width():Number {
-			return fixedWidth;
-		}
 	}
 }
