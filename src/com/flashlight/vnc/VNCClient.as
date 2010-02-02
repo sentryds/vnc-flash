@@ -425,11 +425,9 @@ package com.flashlight.vnc
 	    }
 
 		public function crtLock():void {
-			if (status != VNCConst.STATUS_CONNECTED) return;
                         crtKeyLocked = true;
 	    }
 		public function crtUnlock():void {
-			if (status != VNCConst.STATUS_CONNECTED) return;
                         crtKeyLocked = false;
 	    }
 		

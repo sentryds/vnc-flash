@@ -77,22 +77,6 @@
 			[Bindable] private var hideButtons:Boolean;
 			[Bindable] private var password:String;
 			
-                        /* Javascript interface functions */
-                        public function connectTo(host:String, port:int,
-                                    securityPort:int, password:String):void {
-                            settings.host = host;
-                            settings.port = port;
-                            settings.securityPort = securityPort;
-                            settings.password = password;
-                            vnc.connect();
-                        }
-                        public function showSettingsPopup():void {
-                            (new SettingsPopup()).show(settings,viewer.parent);
-                        }
-                        public function showMorePopup():void {
-                            (new MorePopup()).show(vnc,viewer.parent);
-                        }
-
 			private function init():void {
 				if (URLUtil.getProtocol(url) == 'file') {
 					Alert.show("WARNING:\nDue to a flash bug, Flashlight-VNC won't run well if served by the 'file' protocol in a browser, build in release mode.\nRun it from an HTTP server instead.\nRight-click disabled, tightVNC broken");
@@ -168,6 +152,8 @@
                                     ExternalInterface.addCallback("connectTo", connectTo);
                                     ExternalInterface.addCallback("showSettingsPopup", showSettingsPopup);
                                     ExternalInterface.addCallback("showMorePopup", showMorePopup);
+                                    ExternalInterface.addCallback("getStatus", getStatus);
+                                    ExternalInterface.addCallback("testConnectTo", testConnectTo);
                                     logger.debug("added external interface");
                                 } else {
                                     logger.debug("external interface not available");
@@ -292,6 +278,48 @@
 				event.target.removeEventListener(Event.ENTER_FRAME, onFrameEnter);
 				mouseOnViewer = false;
 			}
+
+                        /* Javascript interface functions */
+                        public function connectTo(host:String, port:int,
+                                    securityPort:int, password:String):void {
+                            settings.host = host;
+                            settings.port = port;
+                            settings.securityPort = securityPort;
+                            settings.password = password;
+                            vnc.connect();
+                        }
+                        public function showSettingsPopup():void {
+                            (new SettingsPopup()).show(settings,viewer.parent);
+                        }
+                        public function showMorePopup():void {
+                            (new MorePopup()).show(vnc,viewer.parent);
+                        }
+                        public function getStatus():String {
+                            return vnc.status + (vnc.serverName ? ' to '+vnc.serverName : '');
+                        }
+
+                        public function testConnectTo(host:String, port:int, securityPort:int, timeout:int):void {
+                            Security.loadPolicyFile("xmlsocket://"+host+":"+int(securityPort));
+                            var s:Socket = new Socket();
+                            s.timeout = timeout;
+                            s.addEventListener(IOErrorEvent.IO_ERROR, onTestConnectToFail);
+                            s.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onTestConnectToFail);
+                            s.addEventListener(Event.CONNECT, onTestConnectToOK);
+                            s.connect(host,port);
+                        }
+
+			private function onTestConnectToOK(event:Event):void {
+			    (event.target as Socket).close();
+                            ExternalInterface.call("testConnectToComplete", true);
+			}
+			private function onTestConnectToFail(event:Event):void {
+			    (event.target as Socket).close();
+                            ExternalInterface.call("testConnectToComplete", false);
+			}
+			
+			
+			
+
 		]]>
 	</mx:Script>
 	
@@ -320,7 +348,7 @@
 	
 	<mx:HBox id="controls" styleName="controls" width="100%" backgroundColor="#CCCCCC" verticalAlign="middle"
 		visible="{!hideControls}" height="{hideControls ? 0 : undefined}">
-		<mx:Text text="{vnc.status + (vnc.serverName ? ' '+vnc.serverName : '')}" width="100%" />
+                <mx:Text text="{vnc.status + (vnc.serverName ? ' to '+vnc.serverName : '')}" width="100%" />
 		<components:ConnectButton vncClient="{vnc}" visible="{!hideButtons}"/>
 		<mx:Button width="26" styleName="iconButton" toolTip="Settings" click="showSettingsPopup();" icon="@Embed('/assets/settings.png')"  visible="{!hideButtons}"/>
 		<mx:Button width="26" height="24" styleName="iconButton" toolTip="More options" click="showMorePopup();" label="…"  visible="{!hideButtons}"/>
