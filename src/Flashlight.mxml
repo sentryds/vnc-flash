@@ -148,6 +148,10 @@
                                     ExternalInterface.addCallback("disconnect", vnc.disconnect);
                                     ExternalInterface.addCallback("ctrlLock", vnc.crtLock);
                                     ExternalInterface.addCallback("ctrlUnlock", vnc.crtUnlock);
+                                    ExternalInterface.addCallback("ctrlAltLock", vnc.crtAltLock);
+                                    ExternalInterface.addCallback("ctrlAltUnlock", vnc.crtAltUnlock);
+                                    ExternalInterface.addCallback("ctrlAltSysRqLock", vnc.crtAltSysRqLock);
+                                    ExternalInterface.addCallback("ctrlAltSysRqUnlock", vnc.crtAltSysRqUnlock);
                                     ExternalInterface.addCallback("sendKey", vnc.sendKey);
                                     ExternalInterface.addCallback("connectTo", connectTo);
                                     ExternalInterface.addCallback("showSettingsPopup", showSettingsPopup);
