@@ -394,8 +394,8 @@ package com.flashlight.vnc
 		private var captureKeyEvents:Boolean = false;
 		private var crtKeyDown:Boolean = false;
 		private var crtKeyLocked:Boolean = false;
-		private var crtAltKeyLocked:Boolean = false;
-		private var crtAltSysRqKeyLocked:Boolean = false;
+		private var altKeyLocked:Boolean = false;
+		private var sysRqKeyLocked:Boolean = false;
 		
 		private function onFocusLost(event:FocusEvent):void {
 			if (status != VNCConst.STATUS_CONNECTED) return;
@@ -432,17 +432,17 @@ package com.flashlight.vnc
 		public function crtUnlock():void {
                         crtKeyLocked = false;
 	    }
-		public function crtAltLock():void {
-                        crtAltKeyLocked = true;
+		public function altLock():void {
+                        altKeyLocked = true;
 	    }
-		public function crtAltUnlock():void {
-                        crtAltKeyLocked = false;
+		public function altUnlock():void {
+                        altKeyLocked = false;
 	    }
-		public function crtAltSysRqLock():void {
-                        crtAltSysRqKeyLocked = true;
+		public function sysRqLock():void {
+                        sysRqKeyLocked = true;
 	    }
-		public function crtAltSysRqUnlock():void {
-                        crtAltSysRqKeyLocked = false;
+		public function sysRqUnlock():void {
+                        sysRqKeyLocked = false;
 	    }
 		
 		
@@ -504,7 +504,7 @@ package com.flashlight.vnc
                                             rfbWriter.writeKeyEvent(downState,keysym,true);
                                         } else {
                                             var flush:Boolean = true;
-                                            if (crtKeyLocked || crtAltKeyLocked || crtAltSysRqKeyLocked)
+                                            if (crtKeyLocked || altKeyLocked || sysRqKeyLocked)
                                                 flush = false;
                                             rfbWriter.writeKeyEvent(downState,keysym,flush);
                                             sendLocked(false, true);
@@ -514,15 +514,24 @@ package com.flashlight.vnc
 		}
 	
                 private function sendLocked(down:Boolean, flush:Boolean):void {
-                        if (crtAltSysRqKeyLocked) {
-                            rfbWriter.writeKeyEvent(down,65507,false); //CTRL Down
-                            rfbWriter.writeKeyEvent(down,65513,false); //ALT
+                        var doFlush:Boolean = false;
+
+			logger.debug(">> sendLocked()");
+                        if (crtKeyLocked) {
+                            if (flush && !altKeyLocked && !sysRqKeyLocked)
+                                doFlush = true;
+			    logger.debug("send locked Ctrl");
+                            rfbWriter.writeKeyEvent(down,65507,doFlush); //CTRL
+                        }
+                        if (altKeyLocked) {
+                            if (flush && !sysRqKeyLocked)
+                                doFlush = true;
+			    logger.debug("send locked Alt");
+                            rfbWriter.writeKeyEvent(down,65513,doFlush); //ALT
+                        }
+                        if (sysRqKeyLocked) {
+			    logger.debug("send locked SysRq");
                             rfbWriter.writeKeyEvent(down,65377,flush); //SysRq
-                        } else if (crtAltKeyLocked) {
-                            rfbWriter.writeKeyEvent(down,65507,false); //CTRL Down
-                            rfbWriter.writeKeyEvent(down,65513,flush); //ALT
-                        } else if (crtKeyLocked) {
-                            rfbWriter.writeKeyEvent(down,65507,flush); //CTRL Down
                         }
                 }
 
@@ -538,7 +547,7 @@ package com.flashlight.vnc
 
 				for (var i:int=0; i<input.length ;i++) {
 					rfbWriter.writeKeyEvent(true,input.charCodeAt(i),flush);
-                                        if (!crtKeyLocked && !crtAltKeyLocked && !crtAltSysRqKeyLocked
+                                        if (!crtKeyLocked && !altKeyLocked && !sysRqKeyLocked
                                             && (i == input.length-1))
                                             flush = true;
 					rfbWriter.writeKeyEvent(false,input.charCodeAt(i),flush);
