@@ -165,6 +165,8 @@
 
 				addEventListener(Event.ENTER_FRAME, onFrameEnter);
 				
+				ExternalInterface.call("flashOnLoad");
+
 				if (autoConnect) vnc.connect();
 			}
 			
