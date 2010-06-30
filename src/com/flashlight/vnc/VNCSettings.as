@@ -27,6 +27,7 @@ package com.flashlight.vnc
 	public class VNCSettings extends EventDispatcher {
 		[Bindable] public var host:String = "localhost";
 		[Bindable] public var port:int = 5900;
+		[Bindable] public var useWS:Boolean = false;
 		[Bindable] public var password:String = "<unset>";
 		[Bindable] public var useSecurity:Boolean = true;
 		[Bindable] public var securityPort:int = 1234;
@@ -45,6 +46,7 @@ package com.flashlight.vnc
 				if (so.data.host) {
 					host = so.data.host;
 					port = so.data.port;
+					useWS = so.data.useWS;
 					password = so.data.password;
 					useSecurity = so.data.useSecurity;
 					securityPort = so.data.securityPort;
@@ -65,6 +67,7 @@ package com.flashlight.vnc
 			if (so != null && so.data != null) {
 				so.data.host = host;
 				so.data.port = port;
+				so.data.useWS = useWS;
 				so.data.password = password;
 				so.data.useSecurity = useSecurity;
 				so.data.securityPort = securityPort;

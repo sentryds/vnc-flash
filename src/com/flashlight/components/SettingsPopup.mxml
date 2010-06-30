@@ -46,6 +46,7 @@
 			private function save():void {
 				settings.host = hostInput.text;
 				settings.port = int(portInput.text);
+				settings.useWS = wsEnabled.selected;
 				settings.password = passwordInput.text;
 				settings.useSecurity = securityEnabled.selected;
 				settings.securityPort = int(securityPortInput.text);
@@ -147,6 +148,10 @@
                             focusIn="passwordInput.displayAsPassword = false;"
                             focusOut="passwordInput.displayAsPassword = true;"
                             text="{settings.password}" />
+                </mx:HBox>
+		<mx:HBox width="100%" verticalAlign="middle">
+			<mx:CheckBox id="wsEnabled" selected="{settings.useWS}" toggle="true" />
+			<mx:Text text="Use WebSockets" width="100%"/>
                 </mx:HBox>
 		<mx:HBox width="100%" verticalAlign="middle">
 			<mx:CheckBox id="securityEnabled" selected="{settings.useSecurity}" toggle="true" />

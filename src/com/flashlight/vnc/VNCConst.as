@@ -22,6 +22,7 @@ package com.flashlight.vnc
 	public class VNCConst {
 		public static const STATUS_NOT_CONNECTED:String = "Not connected";
 		public static const STATUS_CONNECTING:String = "Connecting";
+		public static const STATUS_WS_HANDSHAKE:String = "WebSockets handshake";
 		public static const STATUS_WAITING_SERVER:String = "Waiting for server";
 		public static const STATUS_INITIATING:String = "Initiating";
 		public static const STATUS_AUTHENTICATING:String = "Authenticating";

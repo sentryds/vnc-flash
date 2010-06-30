@@ -29,41 +29,91 @@ package com.flashlight.rfb
 	
 	import mx.logging.ILogger;
 	import mx.logging.Log;
+	import mx.core.FlexGlobals
+	import mx.utils.StringUtil;
 	
 	public class RFBWriter {
 		private static var logger:ILogger = Log.getLogger("RFBWriter");
 		
 		private var rfbMajorVersion:Number;
 		private var rfbMinorVersion:Number;
-		private var outputStream:IDataBufferedOutput;
+		private var useWS:Boolean;
+		private var rawOutputStream:IDataBufferedOutput;
+		private var outputStream:ByteArray;
+
+		private var wsHandshake:String = 'GET / HTTP/1.1\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nHost: {0}\r\nOrigin: {1}\r\nSec-WebSocket-Key1: {2}\r\nSec-WebSocket-Key2: {3}\r\n\r\n';
 		
-		public function RFBWriter(outputStream:IDataBufferedOutput, rfbMajorVersion:Number, rfbMinorVersion:Number) {
-			this.outputStream = outputStream;
-			this.rfbMajorVersion = rfbMajorVersion;
-			this.rfbMinorVersion = rfbMinorVersion;
+		public function RFBWriter(outputStream:IDataBufferedOutput, useWS:Boolean) {
+			this.rawOutputStream = outputStream;
+			this.outputStream = new ByteArray();
+			this.useWS = useWS;
+		}
+
+		private function flush():void {
+			var a:uint;	
+			outputStream.position = 0;
+			if (useWS) {
+				rawOutputStream.writeByte(0);
+				while (outputStream.bytesAvailable) {
+					a = outputStream.readUnsignedByte();
+					if (a < 128) {
+						if (a == 0) {
+							rawOutputStream.writeByte(196);
+							rawOutputStream.writeByte(128);
+						} else {
+							rawOutputStream.writeByte(a);
+						}
+					} else {
+						if (a < 192) {
+							rawOutputStream.writeByte(194);
+							rawOutputStream.writeByte(a);
+						} else {
+							rawOutputStream.writeByte(195);
+							rawOutputStream.writeByte(a - 64);
+						}
+					}
+				}
+				rawOutputStream.writeByte(255);
+			} else {
+				rawOutputStream.writeBytes(outputStream);
+			}
+
+			rawOutputStream.flush();
+			outputStream = new ByteArray();
 		}
 		
+		public function writeWebSocketsHandshake(hostport:String, key1:String, key2:String, key3:String):void {
+			var i:uint, url:String = FlexGlobals.topLevelApplication.loaderInfo.url;
+			rawOutputStream.writeUTFBytes(StringUtil.substitute(wsHandshake, hostport, url.slice(0, url.indexOf("/", 10)+1), key1, key2));
+			for (i=0; i<key3.length; i++) {
+				rawOutputStream.writeByte(key3.charCodeAt(i));
+			}
+			rawOutputStream.flush();
+		}
+
 		public function writeRFBVersion(rfbMajorVersion:Number, rfbMinorVersion:Number):void {
+			this.rfbMajorVersion = rfbMajorVersion;
+			this.rfbMinorVersion = rfbMinorVersion;
 			var majorS:String = (rfbMajorVersion < 100 ? '0' : '') + (rfbMajorVersion < 10 ? '0' : '') + rfbMajorVersion;
 			var minorS:String = (rfbMinorVersion < 100 ? '0' : '') + (rfbMinorVersion < 10 ? '0' : '') + rfbMinorVersion;
 			outputStream.writeUTFBytes("RFB "+majorS+"."+minorS+"\n");
-			
-			outputStream.flush();
+
+			flush();
 		}
 		
 		public function writeSecurityType(securityType:uint):void {
 			outputStream.writeByte(securityType);
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeSecurityVNCAuthChallenge(challenge:ByteArray):void {
 			outputStream.writeBytes(challenge,0,16);
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeClientInit(shareConnection:Boolean):void {
 			outputStream.writeByte(shareConnection ? 1 : 0);
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeSetPixelFormat(pixelFormat:RFBPixelFormat):void {
@@ -85,8 +135,7 @@ package com.flashlight.rfb
 			outputStream.writeByte(0);
 			outputStream.writeByte(0);
 			outputStream.writeByte(0);
-			
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeSetEncodings(encodings:Array):void {
@@ -97,8 +146,7 @@ package com.flashlight.rfb
 			for each (var encoding:uint in encodings) {
 				outputStream.writeUnsignedInt(encoding);
 			}
-			
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeFramebufferUpdateRequest(incremental:Boolean, rectangle:Rectangle):void {
@@ -110,7 +158,7 @@ package com.flashlight.rfb
 			outputStream.writeShort(rectangle.width);
 			outputStream.writeShort(rectangle.height);
 			
-			outputStream.flush();
+			flush();
 		}
 		
 		public function writeKeyEvent(keyDown:Boolean, keyCode:uint, flush:Boolean = true):void {
@@ -121,7 +169,7 @@ package com.flashlight.rfb
 			outputStream.writeByte(0);
 			outputStream.writeUnsignedInt(keyCode);
 			
-			if (flush) outputStream.flush();
+			if (flush) this.flush();
 		}
 		
 		public function writePointerEvent(buttonMask:uint, position:Point):void {
@@ -131,7 +179,7 @@ package com.flashlight.rfb
 			outputStream.writeShort(position.x);
 			outputStream.writeShort(position.y);
 			
-			outputStream.flush();
+			flush();
 		}
 
 	}

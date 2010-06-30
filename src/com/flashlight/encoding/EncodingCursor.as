@@ -40,6 +40,7 @@ package com.flashlight.encoding
 				name:'EncodingCursor',
 				bytesNeeded: pixelFormat.getPixelsDataSize(rectangle.width, rectangle.height) + maskDataSize,
 				read: function():Object {
+					if ((rectangle.width == 0) || (rectangle.height == 0)) { return null; }
 					var pixels:ByteArray = pixelFormat.readPixels(rectangle.width, rectangle.height, inputStream);
 					var cursorShape:BitmapData = new BitmapData(rectangle.width, rectangle.height, true);
 					var hotSpot:Point = new Point(rectangle.x,rectangle.y);

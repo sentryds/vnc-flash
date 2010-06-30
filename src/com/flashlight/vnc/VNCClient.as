@@ -31,6 +31,7 @@ package com.flashlight.vnc
 	import com.flashlight.utils.BetterSocket;
 	import com.flashlight.utils.IDataBufferedOutput;
 	import com.flashright.RightMouseEvent;
+	import com.gsolo.encryption.MD5;
 	
 	import flash.display.BitmapData;
 	import flash.events.Event;
@@ -67,6 +68,8 @@ package com.flashlight.vnc
 		private var rfbWriter:RFBWriter;
 		
 		private var vncAuthChallenge:ByteArray;
+		private var expectedDigest:String;
+		private var noiseChars:Array;
 		
 		private var pixelFormats:Object = {
 			"8": new RFBPixelFormat8bpp(),
@@ -78,6 +81,7 @@ package com.flashlight.vnc
 		
 		[Bindable] public var host:String = 'localhost';
 		[Bindable] public var port:int = 5900;
+		[Bindable] public var useWS:Boolean = false;
 		[Bindable] public var password:String = '<unset>';
 		[Bindable] public var securityPort:int = 0;
 		[Bindable] public var shareConnection:Boolean = true;
@@ -111,12 +115,22 @@ package com.flashlight.vnc
 			status = VNCConst.STATUS_CONNECTING;
 		}
 		
+		public function onWebSocketsHandshake(md5:String):void {
+			logger.info(">> onWebSocketsHandshake");
+			if (expectedDigest != md5) {
+				logger.info("expected Digest: " + expectedDigest);
+				logger.info("received Digest: " + md5);
+				throw new Error("Server sent invalid WebSockets handshake md5");
+			}
+			logger.info("Server WebSockets handshake md5 validated");
+			logger.info("<< onWebSocketsHandshake");
+		}
+
 		public function onRFBVersion(serverRfbMajorVersion:Number, serverRfbMinorVersion:Number):void {
 			var majorVersion:Number = Math.min(serverRfbMajorVersion, VNCConst.RFB_VERSION_MAJOR);
 			var minorVersion:Number = Math.min(serverRfbMinorVersion, VNCConst.RFB_VERSION_MINOR);
 			
 			rfbReader.setRFBVersion(majorVersion, minorVersion);
-			rfbWriter = new RFBWriter(IDataBufferedOutput(socket), majorVersion, minorVersion);
 			rfbWriter.writeRFBVersion(majorVersion, minorVersion);
 			
 			logger.info("RFB procotol version "+serverRfbMajorVersion+"."+serverRfbMinorVersion);
@@ -566,18 +580,101 @@ package com.flashlight.vnc
 		}
 		
 		private function onSocketConnect(event:Event):void {
-			rfbReader = new RFBReader(socket, this);
+			logger.debug(">> onSocketConnect: useWS: " + useWS);
+			rfbReader = new RFBReader(socket, this, useWS);
+			rfbWriter = new RFBWriter(IDataBufferedOutput(socket), useWS);
 			
-			status = VNCConst.STATUS_WAITING_SERVER;
+			if (useWS) {
+				status = VNCConst.STATUS_WS_HANDSHAKE;
+			} else {
+				status = VNCConst.STATUS_WAITING_SERVER;
+			}
 			
 			FlexGlobals.topLevelApplication.addEventListener(Event.ENTER_FRAME, onEnterNewFrame,false,0,true);
 		}
+
+		/* WebSockets handshake digest routines */
+
+		private function initNoiseChars():void {
+			noiseChars = new Array();
+			for (var i:int = 0x21; i <= 0x2f; ++i) {
+			noiseChars.push(String.fromCharCode(i));
+			}
+			for (var j:int = 0x3a; j <= 0x7a; ++j) {
+			noiseChars.push(String.fromCharCode(j));
+			}
+		}
+		
+		private function generateKey():String {
+			var spaces:uint = randomInt(1, 12);
+			var max:uint = uint.MAX_VALUE / spaces;
+			var number:uint = randomInt(0, max);
+			var key:String = (number * spaces).toString();
+			var noises:int = randomInt(1, 12);
+			var pos:int;
+			for (var i:int = 0; i < noises; ++i) {
+			var char:String = noiseChars[randomInt(0, noiseChars.length - 1)];
+			pos = randomInt(0, key.length);
+			key = key.substr(0, pos) + char + key.substr(pos);
+			}
+			for (var j:int = 0; j < spaces; ++j) {
+			pos = randomInt(1, key.length - 1);
+			key = key.substr(0, pos) + " " + key.substr(pos);
+			}
+			return key;
+		}
+		
+		private function generateKey3():String {
+			var key3:String = "";
+			for (var i:int = 0; i < 8; ++i) {
+			key3 += String.fromCharCode(randomInt(0, 255));
+			}
+			return key3;
+		}
+		
+		private function getSecurityDigest(key1:String, key2:String, key3:String):String {
+			var bytes1:String = keyToBytes(key1);
+			var bytes2:String = keyToBytes(key2);
+			return MD5.rstr_md5(bytes1 + bytes2 + key3);
+		}
+		
+		private function keyToBytes(key:String):String {
+			var keyNum:uint = parseInt(key.replace(/[^\d]/g, ""));
+			var spaces:uint = 0;
+			for (var i:int = 0; i < key.length; ++i) {
+			if (key.charAt(i) == " ") ++spaces;
+			}
+			var resultNum:uint = keyNum / spaces;
+			var bytes:String = "";
+			for (var j:int = 3; j >= 0; --j) {
+			bytes += String.fromCharCode((resultNum >> (j * 8)) & 0xff);
+			}
+			return bytes;
+		}
+		
+		private function randomInt(min:uint, max:uint):uint {
+			return min + Math.floor(Math.random() * (Number(max) - min + 1));
+		}
+		
+		
 		
 		private function onSocketData(event:ProgressEvent):void {
 			onEnterNewFrame(event);
 		}
 		
 		private function onEnterNewFrame(event:Event):void {
+			if (status == VNCConst.STATUS_WS_HANDSHAKE) {
+				initNoiseChars();
+				var key1:String = generateKey();
+				var key2:String = generateKey();
+				var key3:String = generateKey3();
+				logger.info("sending key3: " + key3 + "(" + key3.length + ")");
+				expectedDigest = getSecurityDigest(key1, key2, key3);
+				
+				rfbWriter.writeWebSocketsHandshake(host + ":" + port.toString(), key1, key2, key3);
+				status = VNCConst.STATUS_WAITING_SERVER;
+			}
+
 			try {
 				rfbReader.readData();
 			} catch (e:RFBReaderError) {

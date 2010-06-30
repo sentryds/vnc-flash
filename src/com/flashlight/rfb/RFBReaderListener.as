@@ -27,6 +27,7 @@ package com.flashlight.rfb
 	import flash.utils.ByteArray;
 	
 	public interface RFBReaderListener {
+		function onWebSocketsHandshake(md5:String):void;
 		function onRFBVersion(rfbMajorVersion:Number, rfbMinorVersion:Number):void;
 		function onSecurityTypes(securityTypes:Array):void;
 		function onSecurityVNCAuthChallenge(challenge:ByteArray):void;

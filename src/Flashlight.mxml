@@ -94,6 +94,7 @@
 				if (parameters.viewOnly) settings.viewOnly = parameters.viewOnly == "true";
 				if (parameters.host) settings.host = parameters.host;
 				if (parameters.port) settings.port = int(parameters.port);
+				if (parameters.useWS) settings.useWS = parameters.useWS;
 				if (parameters.password) settings.password = parameters.password;
 				if (parameters.securityPort) {
 					settings.securityPort = int(parameters.securityPort);
@@ -287,11 +288,12 @@
 
                         /* Javascript interface functions */
                         public function connectTo(host:String, port:int,
-                                    securityPort:int, password:String):void {
+                                    securityPort:int, password:String, useWS:Boolean):void {
                             settings.host = host;
                             settings.port = port;
                             settings.securityPort = securityPort;
                             settings.password = password;
+                            settings.useWS = useWS;
                             vnc.connect();
                         }
                         public function showSettingsPopup():void {
@@ -305,6 +307,11 @@
                         }
 
                         public function testConnectTo(host:String, port:int, securityPort:int, timeout:int):void {
+                            logger.debug(">> testConnectTo");
+			    if (vnc.status != VNCConst.STATUS_NOT_CONNECTED) {
+                                logger.debug("  ignoring test, already connected");
+                                return;
+                            }
                             Security.loadPolicyFile("xmlsocket://"+host+":"+int(securityPort));
                             var s:Socket = new Socket();
                             s.timeout = timeout;
@@ -312,15 +319,20 @@
                             s.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onTestConnectToFail);
                             s.addEventListener(Event.CONNECT, onTestConnectToOK);
                             s.connect(host,port);
+                            logger.debug("<< testConnectTo");
                         }
 
 			private function onTestConnectToOK(event:Event):void {
-			    (event.target as Socket).close();
-                            ExternalInterface.call("testConnectToComplete", true);
+				logger.debug(">> onTestConnectToOK");
+				(event.target as Socket).close();
+				ExternalInterface.call("testConnectToComplete", true);
+				logger.debug("<< testConnectToOK");
 			}
 			private function onTestConnectToFail(event:Event):void {
-			    (event.target as Socket).close();
-                            ExternalInterface.call("testConnectToComplete", false);
+				logger.debug(">> onTestConnectToFail");
+				(event.target as Socket).close();
+				ExternalInterface.call("testConnectToComplete", false);
+				logger.debug("<< onTestConnectToFail");
 			}
 			
 			
@@ -335,6 +347,7 @@
 		vncRemoteCursor="onRemoteCursorMove(event.position)"
 		host="{settings.host}"
 		port="{settings.port}"
+		useWS="{settings.useWS}"
 		password="{settings.password}"
 		securityPort="{settings.securityPort}"
 		viewOnly="{settings.viewOnly}"

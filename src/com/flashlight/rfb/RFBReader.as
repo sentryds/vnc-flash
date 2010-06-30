@@ -40,8 +40,14 @@ package com.flashlight.rfb
 	public class RFBReader {
 		private static var logger:ILogger = Log.getLogger("RFBReader");
 		
-		private var inputStream:IDataInput;
+		private var rawInputStream:IDataInput;
+		private var inputStream:ByteArray;
 		private var listener:RFBReaderListener;
+
+		private var useWS:Boolean;
+		private var handshakeWS:Boolean;
+		private var pendingWSStart:Boolean;
+		private var handshake:String = "";
 		
 		private var rfbMajorVersion:Number;
 		private var rfbMinorVersion:Number;
@@ -53,9 +59,13 @@ package com.flashlight.rfb
 		
 		private var readVNCAuthChallenge:Object;
 		
-		public function RFBReader(inputStream:IDataInput, listener:RFBReaderListener) {
+		public function RFBReader(origInputStream:IDataInput, listener:RFBReaderListener, useWS:Boolean) {
 			this.listener = listener;
-			this.inputStream = inputStream;
+			this.rawInputStream = origInputStream;
+			this.inputStream = new ByteArray();
+			this.useWS = useWS;
+			this.handshakeWS = true;
+			this.pendingWSStart = false;
 			
 			var readVersion:Object = {
 				name: 'readVersion',
@@ -204,6 +214,16 @@ package com.flashlight.rfb
 				name: 'readMessage',
 				bytesNeeded: 1,
 				read: function():Object {
+
+					/* Compact the data into a new inputStream */
+					if (inputStream.position > 32768) {
+						var newInputStream:ByteArray = new ByteArray();
+						logger.info("compacting inputStream");
+						inputStream.readBytes(newInputStream, 0, inputStream.bytesAvailable);
+						inputStream = newInputStream;
+						inputStream.position = 0;
+					}
+
 					var messageType:uint = inputStream.readByte();
 					
 					readerStack.push(readMessage);
@@ -265,7 +285,7 @@ package com.flashlight.rfb
 								inputStream.readUnsignedShort());
 								
 								
-					//logger.info('rectangle '+rectangle);
+							//logger.info('rectangle '+rectangle);
 							
 							var encodingType:uint = inputStream.readInt();
 							
@@ -381,13 +401,75 @@ package com.flashlight.rfb
 		}
 		
 		public function readData():void {
-			var nextReader:Object = readerStack.pop();
+			var nextReader:Object;
+			var i:uint, a:uint, b:uint, writePos:int;
 			
+			if (useWS) {
+				if (handshakeWS) {
+					var idx:int = -1, md5:String = "";
+					while (rawInputStream.bytesAvailable) {
+						handshake += rawInputStream.readUTFBytes(1);
+						idx = handshake.indexOf("\r\n\r\n"); 
+						if (idx > -1) {
+							break;
+						}
+					}
+					if (idx == -1) {
+						logger.info("Waiting for full WebSockets handshake");
+						return;
+					}
+					for (i = 0; i < 16; i++) {
+						md5 += String.fromCharCode(rawInputStream.readUnsignedByte());
+					}
+					logger.info('server handshake: ' + handshake);
+					logger.info('md5: ' + md5);
+					listener.onWebSocketsHandshake(md5);
+
+					handshakeWS = false;
+					pendingWSStart = true;
+				}
+				/* UTF-8 decode */
+				writePos = inputStream.length;
+				while (rawInputStream.bytesAvailable > 1) {
+					a = rawInputStream.readUnsignedByte();
+					if (pendingWSStart) {
+						if (a != 0) {
+							throw new Error("invalid WebSockets frame marker");
+						}
+						pendingWSStart = false;
+						//logger.info("found WebSockets frame start");
+						continue;
+					}
+					if (a == 255) {
+						//logger.info("found WebSockets frame end");
+						pendingWSStart = true;
+						continue;
+					}
+
+					if (a < 128) {
+						inputStream[writePos] = a;
+					} else {
+						b = rawInputStream.readUnsignedByte();
+						switch (a) {
+						case 194: inputStream[writePos] = b; break;
+						case 195: inputStream[writePos] = b + 64; break;
+						case 196: inputStream[writePos] = 0; break;
+						default: throw new Error("invalid UTF-8 stream");
+						}
+					}
+					writePos += 1;
+				}
+			} else {
+				/* Raw byte stream */
+				rawInputStream.readBytes(inputStream, inputStream.length);
+			}
+
+            nextReader = readerStack.pop()
 			while (nextReader.bytesNeeded <= inputStream.bytesAvailable) {
 				try {
-					logger.debug(">> "+nextReader.name);
+					//logger.debug(">> "+nextReader.name);
 					var newNextReader:Object = nextReader.read();
-					logger.debug("<< "+nextReader.name);
+					//logger.debug("<< "+nextReader.name);
 					if (newNextReader is Array) {
 						while (newNextReader.length > 0) {
 							readerStack.push(newNextReader.pop());
